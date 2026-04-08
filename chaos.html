@@ -384,6 +384,41 @@ html, body {
 //  ILLUSIVE CODERS — ERROR CHAOS PAGE
 // ══════════════════════════════════════════
 
+
+
+// ── AUDIO ENGINE ──
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+// short warning siren
+function playSiren() {
+  const ctx = getAudioContext();
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, ctx.currentTime);
+  osc.frequency.linearRampToValueAtTime(650, ctx.currentTime + 0.15);
+
+  gain.gain.setValueAtTime(0.5, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+  osc.start();
+  osc.stop(ctx.currentTime + 0.35);
+}
+
+
+
 // ── Cursor ──
 const dot  = document.getElementById('cursor-dot');
 const ring = document.getElementById('cursor-ring');
@@ -633,6 +668,8 @@ function randPos(w) {
 
 function spawnPopup(def) {
   if(spawned.has(def.id)) return;
+
+  playSiren();
   spawned.add(def.id);
   totalSpawned++;
   incErr();
@@ -812,6 +849,8 @@ setTimeout(()=>{
   csNum.textContent=count;
 
   const iv=setInterval(()=>{
+
+    playSiren();
     count--;
     csNum.textContent=count;
     doGlitch();
