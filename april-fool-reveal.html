@@ -304,6 +304,55 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
+
+// ═══════════════════════════════
+//  AUDIO ENGINE
+// ═══════════════════════════════
+const AudioEngine = {
+  bgMusic: null,
+  sounds: {},
+  unlocked: false,
+
+  init() {
+    // Background music
+    this.bgMusic = new Audio('bg-music.mp3');
+    this.bgMusic.loop = true;
+    this.bgMusic.volume = 0.18; // low so it's not annoying
+
+    // Sound effects
+    this.sounds.glitch  = new Audio('glitch.mp3');
+    this.sounds.click   = new Audio('click.mp3');
+    this.sounds.typing  = new Audio('typing.mp3');
+
+    this.sounds.glitch.volume = 0.4;
+    this.sounds.click.volume  = 0.5;
+    this.sounds.typing.volume = 0.3;
+  },
+
+  unlock() {
+    if (this.unlocked) return;
+    this.unlocked = true;
+    this.bgMusic.play().catch(() => {});
+  },
+
+  play(name) {
+    const s = this.sounds[name];
+    if (!s) return;
+    s.currentTime = 0;
+    s.play().catch(() => {});
+  },
+
+  stopBg() {
+    this.bgMusic.pause();
+    this.bgMusic.currentTime = 0;
+  }
+};
+
+AudioEngine.init();//
+
+// Unlock on first user interaction
+document.addEventListener('click', () => AudioEngine.unlock(), { once: true });
+document.addEventListener('touchstart', () => AudioEngine.unlock(), { once: true });
 // ── MATRIX RAIN ──
 const mc   = document.getElementById('matrix-canvas');
 const mctx = mc.getContext('2d');
