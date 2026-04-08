@@ -819,8 +819,9 @@ setTimeout(()=>{
     if(count<=0){
       clearInterval(iv);
 
-      // 🎥 Create monkey video
-      
+      // 🎥 Show 0 on screen for 800ms, THEN show tap-to-continue
+      setTimeout(() => {
+
       // Show tap-to-continue overlay first (needed for audio autoplay)
       const tapOverlay = document.createElement("div");
       tapOverlay.style.cssText = `
@@ -849,6 +850,18 @@ setTimeout(()=>{
 
       tapOverlay.addEventListener("click", () => {
         tapOverlay.remove();
+        cs.style.transition = 'none';
+        cs.style.opacity = '0';
+        cs.style.pointerEvents = 'none';
+        cs.style.display = 'none';
+
+        // Instantly cover everything with black so no error popups flash through
+        const blackCover = document.createElement("div");
+        blackCover.style.cssText = `
+          position:fixed; inset:0; z-index:999998;
+          background:#000; pointer-events:none;
+        `;
+        document.body.appendChild(blackCover);
 
         // Now play video WITH audio — user already clicked
         const video = document.createElement("video");
@@ -872,7 +885,8 @@ setTimeout(()=>{
 
         video.play();
       }, { once: true });
-          
+
+      }, 800); // ← wait 800ms so user sees "0" before tap screen appears
 
     }
   },1000);
