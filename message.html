@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Messages</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #050608;
+  --green:  #00ff41;
+  --cyan:   #00ffe1;
+  --muted:  rgba(0,255,65,0.3);
+  --line:   rgba(0,255,65,0.08);
+  --font:   'IBM Plex Mono', monospace;
+  --bubble-them: #0f1a10;
+  --bubble-me:   rgba(0,255,65,0.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: var(--font);
+  color: var(--green);
+  cursor: none;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── CURSOR ── */
+#cur {
+  position: fixed; z-index: 99999; pointer-events: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+}
+#cur-ring {
+  position: fixed; z-index: 99998; pointer-events: none;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid rgba(0,255,65,0.2);
+  transform: translate(-50%,-50%);
+  transition: left .09s ease, top .09s ease;
+}
+
+/* ── SCANLINES ── */
+#scanlines {
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px
+  );
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 200; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.9) 100%);
+}
+
+/* ══════════════════════════
+   MESSAGE APP WRAPPER
+   ══════════════════════════ */
+.app-wrap {
+  display: flex;
+  height: 100vh;
+  max-width: 900px;
+  margin: 0 auto;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  position: relative;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 260px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+@media(max-width:600px){ .sidebar { display: none; } }
+
+.sidebar-top {
+  padding: 1.2rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.sidebar-title {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: var(--green);
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-search {
+  background: rgba(0,255,65,0.04);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0.4rem 0.8rem;
+  width: 100%;
+  font-family: var(--font);
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  outline: none;
+  cursor: none;
+}
+
+.contact-list { flex: 1; overflow-y: auto; }
+.contact-item {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  cursor: none;
+  transition: background .2s;
+}
+.contact-item.active { background: rgba(0,255,65,0.06); }
+.contact-item:hover { background: rgba(0,255,65,0.04); }
+.contact-avatar {
+  width: 36px; height: 36px;
+  border: 1px solid rgba(0,255,65,0.2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem;
+  color: var(--green);
+  flex-shrink: 0;
+  font-family: 'Bebas Neue', var(--font);
+  position: relative;
+}
+.online-dot {
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 9px; height: 9px;
+  background: var(--green);
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 6px var(--green);
+}
+.contact-info { flex: 1; min-width: 0; }
+.contact-name {
+  font-size: 0.6rem;
+  color: var(--green);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.contact-preview {
+  font-size: 0.55rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.2rem;
+}
+.contact-time {
+  font-size: 0.5rem;
+  color: rgba(0,255,65,0.2);
+}
+
+/* ── Main chat area ── */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Chat header */
+.chat-header {
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(0,255,65,0.02);
+}
+.chat-avatar {
+  width: 36px; height: 36px;
+  border: 1px solid rgba(0,255,65,0.3);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem;
+  position: relative;
+}
+.chat-avatar .online-dot { bottom: -1px; right: -1px; }
+.chat-name {
+  font-size: 0.65rem;
+  color: var(--green);
+  letter-spacing: 0.15em;
+}
+.chat-status {
+  font-size: 0.52rem;
+  color: var(--green);
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.chat-status::before {
+  content: '';
+  width: 5px; height: 5px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 4px var(--green);
+  animation: blink 1.5s ease infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+/* Chat messages */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  scrollbar-width: none;
+}
+.chat-messages::-webkit-scrollbar { display: none; }
+
+/* Date divider */
+.chat-date {
+  text-align: center;
+  font-size: 0.5rem;
+  color: rgba(0,255,65,0.2);
+  letter-spacing: 0.2em;
+  padding: 0.5rem 0;
+}
+
+/* Message bubble */
+.bubble-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .4s ease, transform .4s ease;
+}
+.bubble-wrap.show { opacity: 1; transform: translateY(0); }
+.bubble-wrap.me { flex-direction: row-reverse; }
+
+.bubble-avatar {
+  width: 28px; height: 28px;
+  border: 1px solid rgba(0,255,65,0.15);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.bubble {
+  max-width: 72%;
+  padding: 0.7rem 1rem;
+  font-size: 0.68rem;
+  line-height: 1.8;
+  letter-spacing: 0.03em;
+  position: relative;
+}
+.bubble.them {
+  background: var(--bubble-them);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-radius: 2px 12px 12px 2px;
+  color: var(--green);
+}
+.bubble.me {
+  background: var(--bubble-me);
+  border: 1px solid rgba(0,255,65,0.15);
+  border-radius: 12px 2px 2px 12px;
+  color: rgba(0,255,65,0.7);
+}
+.bubble.them.scary {
+  border-color: rgba(0,255,65,0.3);
+  color: var(--green);
+  text-shadow: 0 0 8px rgba(0,255,65,0.3);
+}
+.bubble-time {
+  font-size: 0.48rem;
+  color: rgba(0,255,65,0.2);
+  margin-top: 0.2rem;
+  padding: 0 0.3rem;
+}
+.me .bubble-time { text-align: right; }
+
+/* Typing indicator */
+.typing-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity .3s;
+}
+.typing-wrap.show { opacity: 1; }
+.typing-bubble {
+  background: var(--bubble-them);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-radius: 2px 12px 12px 2px;
+  padding: 0.7rem 1rem;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.typing-dot {
+  width: 5px; height: 5px;
+  background: rgba(0,255,65,0.5);
+  border-radius: 50%;
+  animation: typDot 1.2s ease infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: .2s; }
+.typing-dot:nth-child(3) { animation-delay: .4s; }
+@keyframes typDot {
+  0%,100%{opacity:.3; transform:translateY(0)}
+  50%{opacity:1; transform:translateY(-4px)}
+}
+
+/* Chat input bar */
+.chat-input-bar {
+  border-top: 1px solid var(--line);
+  padding: 0.8rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(0,255,65,0.01);
+}
+.chat-input {
+  flex: 1;
+  background: rgba(0,255,65,0.04);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  font-family: var(--font);
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  outline: none;
+  cursor: none;
+}
+.chat-send {
+  background: transparent;
+  border: 1px solid rgba(0,255,65,0.2);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  padding: 0.5rem 1rem;
+  cursor: none;
+  border-radius: 20px;
+  transition: border-color .2s, color .2s;
+}
+.chat-send:hover { border-color: var(--green); color: var(--green); }
+
+/* ══════════════════════════
+   WEBCAM PERMISSION POPUP
+   ══════════════════════════ */
+#webcam-popup {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%) scale(0.9);
+  z-index: 500;
+  background: #0d1410;
+  border: 1px solid rgba(0,255,65,0.3);
+  box-shadow:
+    0 0 0 1px rgba(0,255,65,0.08),
+    0 0 60px rgba(0,255,65,0.1),
+    0 30px 80px rgba(0,0,0,0.9);
+  width: 340px;
+  opacity: 0;
+  transition: opacity .4s ease, transform .4s cubic-bezier(.16,1,.3,1);
+  pointer-events: none;
+  cursor: none;
+}
+#webcam-popup.show {
+  opacity: 1;
+  transform: translate(-50%,-50%) scale(1);
+  pointer-events: all;
+}
+
+/* dim backdrop */
+#webcam-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 400;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .4s ease;
+  backdrop-filter: blur(2px);
+}
+#webcam-backdrop.show { opacity: 1; pointer-events: all; }
+
+.wc-header {
+  padding: 1.2rem 1.2rem 0;
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+.wc-site-icon {
+  width: 40px; height: 40px;
+  border: 1px solid rgba(0,255,65,0.2);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.wc-site-info { flex: 1; }
+.wc-site-name {
+  font-size: 0.6rem;
+  color: var(--green);
+  letter-spacing: 0.1em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.wc-site-url {
+  font-size: 0.52rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.wc-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 1rem 0;
+}
+
+.wc-body {
+  padding: 0 1.2rem;
+}
+.wc-title {
+  font-size: 0.65rem;
+  color: var(--green);
+  letter-spacing: 0.12em;
+  margin-bottom: 1rem;
+}
+.wc-perm {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(0,255,65,0.06);
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+.wc-perm:last-child { border-bottom: none; }
+.wc-perm-icon { font-size: 0.9rem; width: 20px; text-align: center; }
+
+.wc-footer {
+  padding: 1rem 1.2rem 1.2rem;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+.wc-btn {
+  background: transparent;
+  border: 1px solid rgba(0,255,65,0.2);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  padding: 0.6rem 1.2rem;
+  cursor: none;
+  transition: all .2s;
+}
+.wc-btn:hover { border-color: var(--green); color: var(--green); }
+.wc-btn.allow {
+  border-color: rgba(0,255,65,0.4);
+  color: var(--green);
+  background: rgba(0,255,65,0.06);
+}
+.wc-btn.allow:hover { background: rgba(0,255,65,0.12); }
+
+/* ── MONKEY FULLSCREEN ── */
+#monkey-screen {
+  position: fixed;
+  inset: 0;
+  background: black;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+#monkey-screen.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+#monkey-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ══════════════════════════
+   CONNECTING SCREEN
+   ══════════════════════════ */
+#connecting-screen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .5s ease;
+}
+#connecting-screen.show { opacity: 1; pointer-events: all; }
+
+.conn-ring {
+  width: 80px; height: 80px;
+  border: 1px solid rgba(0,255,65,0.2);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.conn-text {
+  font-size: 0.65rem;
+  color: var(--muted);
+  letter-spacing: 0.25em;
+  animation: blink 1s ease infinite;
+}
+.conn-sub {
+  font-size: 0.52rem;
+  color: rgba(0,255,65,0.2);
+  letter-spacing: 0.2em;
+}
+</style>
+</head>
+<body>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<!-- Webcam backdrop -->
+<div id="webcam-backdrop"></div>
+
+<!-- Main app -->
+<div class="app-wrap">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-title">
+        <span>MESSAGES</span>
+        <span style="color:rgba(0,255,65,0.2);font-size:0.5rem">✎</span>
+      </div>
+      <input class="sidebar-search" type="text" placeholder="Search..." readonly/>
+    </div>
+    <div class="contact-list">
+      <div class="contact-item active">
+        <div class="contact-avatar">IC<div class="online-dot"></div></div>
+        <div class="contact-info">
+          <div class="contact-name">Illusive Coders</div>
+          <div class="contact-preview">hey… are you alone? 👀</div>
+        </div>
+        <div class="contact-time">now</div>
+      </div>
+      <div class="contact-item">
+        <div class="contact-avatar" style="opacity:.3">??</div>
+        <div class="contact-info">
+          <div class="contact-name" style="opacity:.3">Unknown</div>
+          <div class="contact-preview" style="opacity:.3">...</div>
+        </div>
+        <div class="contact-time" style="opacity:.3">--:--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <div class="chat-header">
+      <div class="chat-avatar">
+        IC
+        <div class="online-dot"></div>
+      </div>
+      <div>
+        <div class="chat-name">ILLUSIVE CODERS</div>
+        <div class="chat-status">Online now</div>
+      </div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-date">TODAY</div>
+      <!-- messages injected by JS -->
+    </div>
+
+    <div class="chat-input-bar">
+      <input class="chat-input" type="text" placeholder="Message..." readonly/>
+      <button class="chat-send">SEND ↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- Webcam permission popup -->
+<div id="webcam-popup">
+  <div class="wc-header">
+    <div class="wc-site-icon">🌐</div>
+    <div class="wc-site-info">
+      <span class="wc-site-name">illusive-coders.vercel.app</span>
+      <span class="wc-site-url">wants to access your device</span>
+    </div>
+  </div>
+  <div class="wc-divider"></div>
+  <div class="wc-body">
+    <div class="wc-title">Allow access to:</div>
+    <div class="wc-perm">
+      <span class="wc-perm-icon">📷</span>
+      <span>Camera</span>
+    </div>
+    <div class="wc-perm">
+      <span class="wc-perm-icon">🎤</span>
+      <span>Microphone</span>
+    </div>
+  </div>
+  <div class="wc-footer">
+    <button class="wc-btn" id="btn-block" onclick="handleWebcam()">Block</button>
+    <button class="wc-btn allow" id="btn-allow" onclick="handleWebcam()">Allow</button>
+  </div>
+</div>
+
+<!-- Connecting screen -->
+<div id="connecting-screen">
+  <div class="conn-ring"></div>
+  <div class="conn-text">CONNECTING...</div>
+  <div class="conn-sub">Initializing video stream</div>
+</div>
+
+<!-- Monkey Webcam Screen -->
+<div id="monkey-screen">
+<video id="monkey-video" src="monkey.mp4" autoplay muted playsinline preload="auto"></video></div>
+
+<!-- Cursor -->
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<script>
+// ── Cursor ──
+const cur  = document.getElementById('cur');
+const ring = document.getElementById('cur-ring');
+document.addEventListener('mousemove', e => {
+  cur.style.left  = e.clientX + 'px';
+  cur.style.top   = e.clientY + 'px';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top  = e.clientY + 'px';
+});
+
+// ══════════════════════════
+//  iMESSAGE SOUND ENGINE
+// ══════════════════════════
+const msgSound = new Audio('imessage.mp3');
+msgSound.volume = 0.8;
+let audioUnlocked = false;
+
+// Unlock audio on first interaction (browser policy)
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  // Play silent clone to warm up audio context
+  const warm = msgSound.cloneNode();
+  warm.volume = 0;
+  warm.play().catch(() => {});
+}
+document.addEventListener('click',     unlockAudio, { once: true });
+document.addEventListener('touchstart',unlockAudio, { once: true });
+document.addEventListener('mousemove', unlockAudio, { once: true });
+
+function playMsgSound() {
+  // Clone so overlapping sounds work (rapid messages)
+  const s = msgSound.cloneNode();
+  s.volume = 0.8;
+  s.play().catch(() => {});
+}
+
+// ── Messages ──
+const MESSAGES = [
+  { from:'them', text:'hey',                        delay: 600  },
+  { from:'them', text:'you made it to our portfolio 👀', delay: 1800 },
+  { from:'them', text:'we need to tell you something...',delay:3200  },
+  { from:'them', text:'we\'ve been watching you',    delay: 5000 },
+  { from:'them', text:'this whole time.',            delay: 6400 },
+  { from:'them', text:'...',                         delay: 8000, typing: true },
+  { from:'them', text:'your webcam.',                delay: 9800 },
+  { from:'them', text:'is it on right now?',         delay:11200, scary: true },
+  { from:'them', text:'we\'d like to see you 😊',   delay:13000, scary: true },
+];
+
+const container = document.getElementById('chat-messages');
+let typingEl = null;
+
+function getTime() {
+  const n = new Date();
+  return String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+}
+
+function showTyping(show) {
+  if (!typingEl) {
+    typingEl = document.createElement('div');
+    typingEl.className = 'typing-wrap';
+    typingEl.innerHTML = `
+      <div class="bubble-avatar">IC</div>
+      <div>
+        <div class="typing-bubble">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>`;
+    container.appendChild(typingEl);
+  }
+  requestAnimationFrame(() => {
+    typingEl.classList.toggle('show', show);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function addMessage(msg) {
+  if (typingEl) typingEl.classList.remove('show');
+
+  // 🔊 Play iMessage sound in sync with bubble appearing
+  playMsgSound();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'bubble-wrap' + (msg.from === 'me' ? ' me' : '');
+
+  const isMe = msg.from === 'me';
+  wrap.innerHTML = `
+    ${!isMe ? `<div class="bubble-avatar">IC</div>` : ''}
+    <div>
+      <div class="bubble ${msg.from}${msg.scary ? ' scary' : ''}">${msg.text}</div>
+      <div class="bubble-time">${getTime()}</div>
+    </div>
+    ${isMe ? `<div class="bubble-avatar">U</div>` : ''}
+  `;
+  container.appendChild(wrap);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => wrap.classList.add('show'));
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Run message sequence ──
+MESSAGES.forEach((msg, i) => {
+  // Show typing before each "them" message
+  if (msg.from === 'them') {
+    setTimeout(() => showTyping(true), msg.delay - 800);
+  }
+  setTimeout(() => {
+    if (msg.typing) return; // skip "..." — just keeps typing visible
+    addMessage(msg);
+    container.scrollTop = container.scrollHeight;
+    // show webcam popup after last scary message
+    if (i === MESSAGES.length - 1) {
+      setTimeout(showWebcamPopup, 1800);
+    }
+  }, msg.delay);
+});
+
+// ── Webcam popup ──
+function showWebcamPopup() {
+  document.getElementById('webcam-backdrop').classList.add('show');
+  document.getElementById('webcam-popup').classList.add('show');
+}
+
+function handleWebcam() {
+  // hide popup
+  document.getElementById('webcam-popup').classList.remove('show');
+  document.getElementById('webcam-backdrop').classList.remove('show');
+
+  const conn = document.getElementById('connecting-screen');
+  conn.classList.add('show');
+
+  // STEP 1 → show connecting for 2.5s
+  setTimeout(() => {
+    conn.classList.remove('show');
+
+    // STEP 2 → show monkey full screen
+    const monkey = document.getElementById('monkey-screen');
+    const video = document.getElementById('monkey-video');
+
+    monkey.classList.add('show');
+
+    // try unmute (may fail due to browser policy)
+    video.muted = false;
+    video.play().catch(() => {
+      video.muted = true;
+      video.play();
+    });
+
+    // STEP 3 → after video (5s) go to April Fool
+    video.onended = () => {
+    document.body.style.transition = 'opacity 0.6s ease';
+    document.body.style.opacity = '0';
+
+    setTimeout(() => {
+    window.location.href = 'aprilfool.html';
+    }, 600);
+    };
+
+  }, 2500);
+}
+</script>
+</body>
+</html>
