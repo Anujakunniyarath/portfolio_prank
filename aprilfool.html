@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>April Fool 😄 — Illusive Coders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #050608;
+  --green:   #00ff41;
+  --cyan:    #00ffe1;
+  --amber:   #ffb800;
+  --muted:   rgba(0,255,65,0.3);
+  --line:    rgba(0,255,65,0.08);
+  --font:    'IBM Plex Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font);
+  overflow-x: hidden;
+  cursor: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── CURSOR ── */
+#cur {
+  position: fixed; z-index: 99999; pointer-events: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+}
+#cur-ring {
+  position: fixed; z-index: 99998; pointer-events: none;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid rgba(0,255,65,0.2);
+  transform: translate(-50%,-50%);
+  transition: left .09s ease, top .09s ease;
+}
+
+/* ── SCANLINES ── */
+#scanlines {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+  );
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.88) 100%);
+}
+
+/* ══════════════════════════
+   SECTION 1 — APRIL FOOL REVEAL
+   ══════════════════════════ */
+.reveal-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Grid bg */
+.reveal-section::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Big April Fool text */
+.af-big {
+  font-family: var(--display);
+  font-size: clamp(4rem, 18vw, 13rem);
+  line-height: 0.88;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--green);
+  text-shadow:
+    0 0 40px rgba(0,255,65,0.5),
+    0 0 100px rgba(0,255,65,0.2);
+  opacity: 0;
+  animation: zoomIn 1s cubic-bezier(.16,1,.3,1) .3s forwards;
+  position: relative;
+  z-index: 2;
+}
+.af-emoji {
+  display: block;
+  font-family: var(--font);
+  font-size: 0.15em;
+  letter-spacing: 0.3em;
+  color: var(--muted);
+  margin-top: 0.5em;
+  font-weight: 300;
+}
+
+/* Reveal lines */
+.reveal-lines {
+  max-width: 560px;
+  text-align: center;
+  margin-top: 3rem;
+  position: relative;
+  z-index: 2;
+}
+.rv-line {
+  display: block;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  letter-spacing: 0.12em;
+  line-height: 2.4;
+  color: var(--muted);
+  opacity: 0;
+}
+.rv-line.show { animation: fadeUp .7s ease forwards; }
+.rv-line b { color: var(--green); font-weight: 400; }
+.rv-line.punch {
+  color: var(--green);
+  font-size: clamp(0.8rem, 2.5vw, 1rem);
+  margin-top: 0.5rem;
+}
+
+
+/* ══════════════════════════
+   SECTION 2 — FINAL PORTFOLIO
+   ══════════════════════════ */
+.final-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.final-section::before {
+  content: '';
+  position: absolute;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(0,255,65,0.04) 0%, transparent 65%);
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+
+.final-inner {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* Final big team name */
+.final-name {
+  font-family: var(--display);
+  font-size: clamp(3rem, 12vw, 8rem);
+  line-height: 0.88;
+  letter-spacing: 0.08em;
+  color: var(--green);
+  text-shadow:
+    0 0 40px rgba(0,255,65,0.3),
+    0 0 100px rgba(0,255,65,0.1);
+  opacity: 0;
+}
+.final-name.show { animation: fadeUp 1s cubic-bezier(.16,1,.3,1) forwards; }
+.final-name em {
+  display: block;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(0,255,65,0.3);
+  font-style: normal;
+}
+
+.final-tagline {
+  font-size: clamp(0.6rem, 1.5vw, 0.75rem);
+  color: var(--muted);
+  letter-spacing: 0.35em;
+  margin-top: 1.5rem;
+  opacity: 0;
+}
+.final-tagline.show { animation: fadeUp .8s ease .3s forwards; }
+
+/* Divider */
+.final-divider {
+  width: 1px;
+  height: 60px;
+  background: linear-gradient(to bottom, var(--line), transparent);
+  margin: 3rem auto;
+  opacity: 0;
+}
+.final-divider.show { animation: fadeUp .6s ease .5s forwards; }
+
+/* Team members final display */
+.final-team {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  max-width: 600px;
+  margin: 0 auto 3rem;
+  opacity: 0;
+}
+@media(max-width:500px){ .final-team { grid-template-columns: 1fr; } }
+.final-team.show { animation: fadeUp .8s ease .6s forwards; }
+
+.final-member {
+  background: var(--bg);
+  padding: 2rem;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.final-member::before {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--green), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .5s ease;
+}
+.final-member:hover::before { transform: scaleX(1); }
+
+.fm-num {
+  font-size: 0.5rem;
+  color: rgba(0,255,65,0.2);
+  letter-spacing: 0.25em;
+  display: block;
+  margin-bottom: 1rem;
+}
+.fm-name {
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+}
+.fm-role {
+  font-size: 0.52rem;
+  color: var(--muted);
+  letter-spacing: 0.2em;
+}
+
+/* Bottom strip */
+.final-bottom {
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+}
+.final-bottom.show { animation: fadeUp .8s ease .9s forwards; }
+
+.final-quote {
+  font-style: italic;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  color: var(--muted);
+  max-width: 500px;
+  line-height: 1.9;
+  font-family: Georgia, serif;
+}
+.final-quote b {
+  font-family: var(--font);
+  font-style: normal;
+  color: var(--green);
+  font-weight: 400;
+}
+
+.final-meta {
+  font-size: 0.52rem;
+  color: rgba(0,255,65,0.15);
+  letter-spacing: 0.2em;
+  margin-top: 1rem;
+}
+
+/* ── KEYFRAMES ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+</style>
+</head>
+<body>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+
+<!-- ═══════════════════════════
+     SECTION 1 — APRIL FOOL
+     ═══════════════════════════ -->
+<section class="reveal-section">
+
+  <div class="af-big">
+    APRIL<br>FOOL
+    <span class="af-emoji">😄</span>
+  </div>
+
+  <div class="reveal-lines">
+    <span class="rv-line" id="rl1">We never accessed your camera.</span>
+    <span class="rv-line" id="rl2">We can't. No website can — without your <b>real</b> permission.</span>
+    <span class="rv-line" id="rl3">But you hesitated before clicking.</span>
+    <span class="rv-line punch" id="rl4">Didn't you? 😏</span>
+  </div>
+
+
+</section>
+
+<!-- ═══════════════════════════
+     SECTION 2 — FINAL SCREEN
+     ═══════════════════════════ -->
+<section class="final-section">
+  <div class="final-inner">
+
+    <h2 class="final-name" id="final-name">
+      ILLUSIVE<br>
+      <em>CODERS</em>
+    </h2>
+
+    <p class="final-tagline" id="final-tagline">
+      "WE DESIGN WHAT YOU DON'T NOTICE."
+    </p>
+
+    <div class="final-divider" id="final-divider"></div>
+
+    <div class="final-bottom" id="final-bottom">
+      <p class="final-quote">
+        "The best deception is the one that starts<br>
+        <b>before you realize you're being deceived."</b>
+      </p>
+      <p class="final-meta">
+        PRANKRAFT 2026 — IEEE COMPUTER SOCIETY — SAHRDAYA SB × GECT
+      </p>
+    </div>
+
+  </div>
+</section>
+
+<!-- Cursor -->
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<script>
+// ── Cursor ──
+const cur  = document.getElementById('cur');
+const ring = document.getElementById('cur-ring');
+document.addEventListener('mousemove', e => {
+  cur.style.left  = e.clientX + 'px';
+  cur.style.top   = e.clientY + 'px';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top  = e.clientY + 'px';
+});
+
+// ── Reveal lines sequence ──
+const lines = [
+  { id: 'rl1', delay: 600  },
+  { id: 'rl2', delay: 1800 },
+  { id: 'rl3', delay: 3200 },
+  { id: 'rl4', delay: 4400 },
+];
+
+lines.forEach(({ id, delay }) => {
+  setTimeout(() => {
+    document.getElementById(id).classList.add('show');
+  }, delay);
+});
+
+// ── Show meme card ──
+setTimeout(() => {
+  document.getElementById('meme-wrap').classList.add('show');
+  // unmute video for sound
+  const vid = document.getElementById('meme-video');
+  if (vid) {
+    vid.muted = false;
+    vid.volume = 0.8;
+    vid.play().catch(() => {
+      // autoplay blocked — keep muted and play
+      vid.muted = true;
+      vid.play();
+    });
+  }
+}, 5500);
+
+// ── Scroll reveal for final section ──
+const finalObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      document.getElementById('final-name').classList.add('show');
+      document.getElementById('final-tagline').classList.add('show');
+      document.getElementById('final-divider').classList.add('show');
+      document.getElementById('final-bottom').classList.add('show');
+      finalObserver.disconnect();
+    }
+  });
+}, { threshold: 0.3 });
+
+finalObserver.observe(document.querySelector('.final-section'));
+</script>
+</body>
+</html>

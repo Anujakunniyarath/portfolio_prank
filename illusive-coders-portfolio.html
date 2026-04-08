@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Illusive Coders</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #050608;
+  --green:   #00ff41;
+  --cyan:    #00ffe1;
+  --red:     #ff3b3b;
+  --dim:     rgba(0,255,65,0.07);
+  --line:    rgba(0,255,65,0.1);
+  --muted:   rgba(0,255,65,0.35);
+  --font:    'IBM Plex Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 13px;
+  overflow-x: hidden;
+  cursor: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── CURSOR ── */
+#cur {
+  position: fixed; z-index: 99999; pointer-events: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green), 0 0 20px rgba(0,255,65,0.4);
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+  transition: width .15s, height .15s, background .2s;
+}
+#cur-ring {
+  position: fixed; z-index: 99998; pointer-events: none;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid rgba(0,255,65,0.25);
+  transform: translate(-50%,-50%);
+  transition: left .09s ease, top .09s ease, width .2s, height .2s, border-color .2s;
+}
+body.hovering #cur { width: 14px; height: 14px; }
+body.hovering #cur-ring { width: 54px; height: 54px; border-color: rgba(0,255,225,0.4); }
+
+/* ── OVERLAYS ── */
+#scanlines {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+}
+#noise {
+  position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: .022;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── PAGE FADE ── */
+#page-fade {
+  position: fixed; inset: 0; background: #000;
+  z-index: 200; opacity: 1; pointer-events: none;
+  transition: opacity 1s ease;
+}
+#page-fade.clear { opacity: 0; }
+
+/* ══════════════════════════════════════
+   BOOT / ERROR LOADER SCREEN
+   ══════════════════════════════════════ */
+#boot-screen {
+  position: fixed; inset: 0; z-index: 150;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: flex-start;
+  padding: 4rem 5vw;
+  transition: opacity 0.8s ease;
+}
+#boot-screen.hide { opacity: 0; pointer-events: none; }
+
+.boot-line {
+  font-size: clamp(0.6rem, 1.2vw, 0.78rem);
+  letter-spacing: 0.12em;
+  line-height: 2.1;
+  color: rgba(0,255,65,0.5);
+  opacity: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.boot-line.green  { color: var(--green); }
+.boot-line.red    { color: var(--red); }
+.boot-line.yellow { color: #f5c518; }
+.boot-line.show   { opacity: 1; }
+
+.boot-bar-wrap {
+  margin-top: 1.5rem;
+  width: min(420px, 80vw);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.boot-bar-wrap.show { opacity: 1; }
+.boot-bar-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.boot-bar-track {
+  height: 2px; background: rgba(0,255,65,0.1);
+  position: relative; overflow: hidden;
+}
+.boot-bar-fill {
+  height: 100%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  width: 0;
+  transition: width 0s linear;
+}
+
+/* ── HUD ── */
+.hud {
+  position: fixed; z-index: 60; pointer-events: none;
+  font-size: 0.5rem; letter-spacing: 0.22em;
+  color: rgba(0,255,65,0.2); line-height: 2;
+}
+.hud-tl { top: 1.5rem; left: 1.5rem; }
+.hud-tr { top: 1.5rem; right: 1.5rem; text-align: right; }
+.hud-bl { bottom: 1.5rem; left: 1.5rem; }
+.hud-br { bottom: 1.5rem; right: 1.5rem; text-align: right; }
+.hud .hi { color: rgba(0,255,65,0.5); }
+.sdot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 5px var(--green);
+  margin-right: 5px; vertical-align: middle;
+  animation: sdot 1.8s ease infinite;
+}
+@keyframes sdot { 0%,100%{opacity:1} 50%{opacity:.1} }
+
+/* ══════════════════════════
+   HERO
+   ══════════════════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.35; pointer-events: none;
+}
+.hero-tag {
+  font-size: 0.55rem; color: var(--muted);
+  letter-spacing: 0.35em; margin-bottom: 1.5rem;
+  opacity: 0; animation: fadeUp .8s ease .3s forwards;
+}
+.hero-title {
+  font-family: var(--display);
+  font-size: clamp(5rem, 18vw, 14rem);
+  line-height: 0.88; letter-spacing: 0.02em;
+  text-align: center; color: var(--green);
+  text-shadow: 0 0 40px rgba(0,255,65,0.4), 0 0 100px rgba(0,255,65,0.15);
+  opacity: 0; animation: fadeUp 1s cubic-bezier(.16,1,.3,1) .5s forwards;
+}
+.hero-title em {
+  display: block; color: transparent;
+  -webkit-text-stroke: 1px rgba(0,255,65,0.4);
+  font-style: normal;
+}
+.hero-sub {
+  font-size: 0.6rem; color: var(--muted);
+  letter-spacing: 0.3em; margin-top: 2rem;
+  opacity: 0; animation: fadeUp .8s ease 1s forwards;
+}
+.hero-scroll {
+  position: absolute; bottom: 2.5rem;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 0.5rem;
+  opacity: 0; animation: fadeUp .8s ease 1.5s forwards;
+}
+.hero-scroll span { font-size: 0.5rem; color: var(--muted); letter-spacing: 0.3em; }
+.scroll-line {
+  width: 1px; height: 50px;
+  background: linear-gradient(to bottom, var(--muted), transparent);
+  animation: scrollPulse 2s ease infinite;
+}
+@keyframes scrollPulse {
+  0%,100%{opacity:.3;transform:scaleY(1)} 50%{opacity:1;transform:scaleY(1.2)}
+}
+
+/* ══════════════════════════
+   SECTION COMMON
+   ══════════════════════════ */
+.section-wrap {
+  max-width: 1100px; margin: 0 auto;
+  padding: 8rem 2rem;
+  border-bottom: 1px solid var(--line);
+}
+@media(max-width:700px){ .section-wrap { padding: 5rem 1.5rem; } }
+
+.section-header {
+  display: flex; align-items: center;
+  gap: 2rem; margin-bottom: 5rem;
+}
+.section-num {
+  font-family: var(--display);
+  font-size: 3rem; color: rgba(0,255,65,0.1); line-height: 1;
+}
+.section-title { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.3em; }
+
+/* ══════════════════════════
+   ABOUT / INTRO
+   ══════════════════════════ */
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 4rem;
+}
+@media(max-width:700px){ .about-grid { grid-template-columns: 1fr; gap: 2rem; } }
+
+.about-label {
+  font-size: 0.85rem; color: var(--muted);
+  letter-spacing: 0.3em; padding-top: 0.3rem;
+}
+.about-big {
+  font-family: var(--display);
+  font-size: clamp(2rem, 6vw, 4rem);
+  line-height: 1; letter-spacing: 0.02em;
+  margin-bottom: 2rem; color: var(--green);
+}
+.about-big em {
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(0,255,65,0.5);
+  font-style: italic; font-family: Georgia, serif;
+}
+.about-text {
+  font-size: 0.95rem; color: var(--muted);
+  line-height: 2.3; max-width: 520px;
+}
+.about-text b { color: var(--green); font-weight: 400; }
+.about-text .tag-inline {
+  display: inline-block;
+  border: 1px solid rgba(0,255,65,0.2);
+  padding: 0.1em 0.5em;
+  font-size: 0.65rem;
+  margin: 0 0.2em;
+  color: var(--green);
+  vertical-align: middle;
+}
+
+/* Stats strip */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+  margin-top: 4rem;
+}
+@media(max-width:600px){ .stats-strip { grid-template-columns: repeat(2,1fr); } }
+.stat-box {
+  background: var(--bg);
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.stat-num {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  color: var(--green);
+  text-shadow: 0 0 20px rgba(0,255,65,0.4);
+  display: block; margin-bottom: 0.4rem;
+}
+.stat-label {
+  font-size: 0.7rem; letter-spacing: 0.2em;
+  color: var(--muted); text-transform: uppercase;
+}
+
+/* Hackathon badges */
+.badges-row {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  margin-top: 2.5rem;
+}
+.badge {
+  font-size: 0.8rem; letter-spacing: 0.15em;
+  border: 1px solid rgba(0,255,65,0.2);
+  padding: 0.35em 0.8em;
+  color: var(--muted);
+  position: relative; overflow: hidden;
+  transition: color .3s, border-color .3s;
+}
+.badge::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--green);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .35s cubic-bezier(.65,0,.35,1);
+  z-index: 0;
+}
+.badge:hover::before { transform: scaleX(1); }
+.badge:hover { color: #050608; border-color: var(--green); }
+.badge span { position: relative; z-index: 1; }
+
+/* ══════════════════════════
+   TEAM CARDS
+   ══════════════════════════ */
+.members-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem; background: transparent;
+}
+@media(max-width:600px){ .members-grid { grid-template-columns: 1fr; } }
+
+.member-card {
+  background: var(--bg);
+  padding: 3rem 2.5rem;
+  position: relative; overflow: hidden;
+  opacity: 0; transform: translateY(30px);
+  transition: opacity .8s ease, transform .8s cubic-bezier(.16,1,.3,1);
+}
+.member-card.visible { opacity: 1; transform: translateY(0); }
+.member-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--green);
+  transform: scaleY(0); transform-origin: bottom;
+  transition: transform .5s cubic-bezier(.16,1,.3,1); z-index: 0;
+}
+.member-card:hover::before { transform: scaleY(1); }
+.member-card:hover .mc-num,
+.member-card:hover .mc-name,
+.member-card:hover .mc-role,
+.member-card:hover .mc-pos,
+.member-card:hover .mc-bio { color: #050608 !important; border-color: rgba(5,6,8,0.2) !important; }
+.member-card > * { position: relative; z-index: 1; }
+
+.mc-num {
+  font-size: 0.5rem; color: rgba(0,255,65,0.2);
+  letter-spacing: 0.3em; display: block;
+  margin-bottom: 2.5rem; transition: color .3s;
+}
+.mc-name {
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  letter-spacing: 0.02em; line-height: 1;
+  margin-bottom: 0.4rem; transition: color .3s;
+}
+.mc-role {
+  font-size: 0.8rem; color: var(--muted);
+  letter-spacing: 0.25em; display: block;
+  margin-bottom: 0.5rem; transition: color .3s;
+}
+.mc-pos {
+  font-size: 0.85rem; color: rgba(0,255,65,0.25);
+  letter-spacing: 0.12em; display: block;
+  margin-bottom: 2rem;
+  border-left: 2px solid rgba(0,255,65,0.2);
+  padding-left: 0.8rem;
+  transition: color .3s, border-color .3s;
+}
+.mc-bio {
+  font-size: 0.9rem; color: rgba(0,255,65,0.4);
+  line-height: 1.9; transition: color .3s;
+}
+.mc-skills {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  margin-top: 1.5rem;
+}
+.mc-skill {
+  font-size: 0.7rem; letter-spacing: 0.12em;
+  border: 1px solid rgba(0,255,65,0.12);
+  padding: 0.2em 0.5em; color: rgba(0,255,65,0.3);
+  transition: color .3s, border-color .3s;
+}
+.member-card:hover .mc-skill {
+  color: rgba(5,6,8,0.5); border-color: rgba(5,6,8,0.2);
+}
+
+/* ══════════════════════════
+   PROJECTS
+   ══════════════════════════ */
+.project-row {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  gap: 0 2rem;
+  padding: 2.2rem 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+  opacity: 0; transform: translateX(-20px);
+  transition: opacity .7s ease, transform .7s cubic-bezier(.16,1,.3,1);
+  position: relative; overflow: hidden;
+}
+.project-row:first-child { border-top: 1px solid var(--line); }
+.project-row.visible { opacity: 1; transform: translateX(0); }
+.project-row::after {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 2px; background: var(--green);
+  transform: scaleY(0);
+  transition: transform .3s ease;
+}
+.project-row:hover::after { transform: scaleY(1); }
+
+.pr-num {
+  font-family: var(--display);
+  font-size: 1.8rem; color: rgba(0,255,65,0.1); line-height: 1;
+  padding-top: 0.2rem;
+}
+.pr-name {
+  font-family: var(--display);
+  font-size: clamp(1.2rem, 3vw, 2rem);
+  letter-spacing: 0.02em;
+  display: block; margin-bottom: 0.4rem;
+}
+.pr-desc {
+  font-size: 0.9rem; color: var(--muted);
+  line-height: 1.8; margin-bottom: 0.6rem;
+}
+.pr-meta {
+  font-size: 0.75rem; color: rgba(0,255,65,0.2);
+  letter-spacing: 0.12em;
+}
+.pr-tags {
+  display: flex; gap: 0.4rem; flex-wrap: wrap;
+  justify-content: flex-end; padding-top: 0.2rem;
+}
+@media(max-width:600px){ .pr-tags { display: none; } .project-row { grid-template-columns: 2rem 1fr; } }
+.pr-tag {
+  font-size: 0.48rem;
+  border: 1px solid rgba(0,255,65,0.13);
+  padding: 0.2rem 0.5rem;
+  color: var(--muted); letter-spacing: 0.1em;
+}
+
+/* ── Analyze BUTTON ── */
+.analyze-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 4rem 0;
+  text-align: center;
+}
+
+.analyze-text {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  color: rgba(0,255,65,0.45);
+}
+#btn-analyze {
+    position: relative; z-index: 10;
+    opacity: 1;
+    margin-top: 1rem;
+    background: transparent;
+    border: 1px solid rgba(0,255,65,0.4);
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 0.7rem; letter-spacing: 0.38em;
+    text-transform: uppercase;
+    padding: 1.1rem 3.2rem;
+    cursor: none; white-space: nowrap;
+    box-shadow: 0 0 10px rgba(0,255,65,0.12), inset 0 0 10px rgba(0,255,65,0.04);
+    transition: color .3s, border-color .3s, box-shadow .3s;
+    overflow: hidden;
+  }
+#btn-analyze::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(0,255,65,0.07);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.38s cubic-bezier(0.65,0,0.35,1);
+  }
+#btn-analyze:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 22px rgba(0,255,225,0.28), inset 0 0 16px rgba(0,255,225,0.06); }
+#btn-analyze:hover::before { transform: scaleX(1); }
+
+/* ══════════════════════════
+   RECOGNITION STRIP
+   ══════════════════════════ */
+.recognition-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 1px; background: var(--line);
+}
+@media(max-width:650px){ .recognition-grid { grid-template-columns: 1fr; } }
+.rec-card {
+  background: var(--bg);
+  padding: 2.5rem 2rem;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity .7s ease, transform .7s cubic-bezier(.16,1,.3,1);
+}
+.rec-card.visible { opacity: 1; transform: translateY(0); }
+.rec-icon { font-size: 1.4rem; margin-bottom: 1rem; display: block; }
+.rec-title {
+  font-size: 0.9rem; color: var(--green);
+  letter-spacing: 0.15em; margin-bottom: 0.5rem;
+}
+.rec-body { font-size: 0.9rem; color: var(--muted); line-height: 1.9; }
+
+/* ══════════════════════════
+   NOTIFICATION POPUP
+   ══════════════════════════ */
+#notif-popup {
+  position: fixed; bottom: 2rem; right: 2rem;
+  z-index: 9000;
+  background: #0d100d;
+  border: 1px solid rgba(0,255,65,0.22);
+  box-shadow: 0 0 30px rgba(0,255,65,0.08), 0 20px 60px rgba(0,0,0,0.8);
+  width: 310px;
+  opacity: 0; transform: translateY(24px) scale(0.95);
+  transition: opacity .4s ease, transform .4s cubic-bezier(.16,1,.3,1);
+  pointer-events: none; cursor: none;
+}
+#notif-popup.show {
+  opacity: 1; transform: translateY(0) scale(1); pointer-events: all;
+}
+.notif-bar {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(0,255,65,0.08);
+  background: rgba(0,255,65,0.03);
+}
+.notif-icon {
+  width: 24px; height: 24px; background: var(--green);
+  border-radius: 6px; display: flex; align-items: center;
+  justify-content: center; font-size: 0.7rem;
+  color: #050608; flex-shrink: 0;
+}
+.notif-app  { font-size: 0.55rem; color: var(--muted); letter-spacing: .15em; flex: 1; }
+.notif-time { font-size: 0.5rem; color: rgba(0,255,65,0.2); }
+.notif-body { padding: 1rem; }
+.notif-sender { font-size: 0.65rem; color: var(--green); letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+.notif-msg  { font-size: 0.68rem; color: var(--muted); line-height: 1.7; }
+.notif-footer { display: flex; border-top: 1px solid rgba(0,255,65,0.07); }
+.notif-action {
+  flex: 1; background: transparent; border: none;
+  border-right: 1px solid rgba(0,255,65,0.07);
+  color: var(--muted); font-family: var(--font);
+  font-size: 0.55rem; letter-spacing: 0.12em;
+  padding: 0.7rem; cursor: none;
+  transition: background .2s, color .2s;
+}
+.notif-action:last-child { border-right: none; }
+.notif-action:hover { background: rgba(0,255,65,0.05); color: var(--green); }
+.notif-action.primary { color: var(--green); }
+
+/* ── KEYFRAMES ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<!-- OVERLAYS -->
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="noise"></div>
+<div id="page-fade"></div>
+
+<!-- BOOT / LOADING SCREEN -->
+<div id="boot-screen">
+  <div id="boot-lines"></div>
+  <div class="boot-bar-wrap" id="boot-bar-wrap">
+    <div class="boot-bar-label">ESTABLISHING SECURE CONNECTION...</div>
+    <div class="boot-bar-track">
+      <div class="boot-bar-fill" id="boot-bar-fill"></div>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div class="hud hud-tl">
+  <div class="hi"><span class="sdot"></span>Illusive Coders</div>
+  <div>System :: Active</div>
+</div>
+<div class="hud hud-tr">
+  <div class="hi" id="hud-time">--:--:--</div>
+  <div>Session :: Encrypted</div>
+</div>
+<div class="hud hud-bl">
+  <div>Enc :: AES-256-GCM</div>
+  <div>Status :: <span class="hi">Undetected</span></div>
+</div>
+<div class="hud hud-br">
+  <div id="hud-pkt">PKT :: 0000</div>
+  <div>Latency :: 2ms</div>
+</div>
+
+<!-- CURSOR -->
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<!-- NOTIFICATION -->
+<div id="notif-popup">
+  <div class="notif-bar">
+    <div class="notif-icon">💬</div>
+    <span class="notif-app">MESSAGES</span>
+    <span class="notif-time" id="notif-time">now</span>
+  </div>
+  <div class="notif-body">
+    <div class="notif-sender">Illusive Coders</div>
+    <div class="notif-msg">hey… are you alone right now? 👀</div>
+  </div>
+  <div class="notif-footer">
+    <button class="notif-action" onclick="dismissNotif()">Ignore</button>
+    <button class="notif-action primary" onclick="window.location.href='message.html'">Open →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     MAIN CONTENT
+     ══════════════════════════════ -->
+<main id="main-content" style="opacity:0; transition: opacity 0.8s ease;">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag">// PORTFOLIO — 2026</div>
+    <h1 class="hero-title">
+      ILLUSIVE<br>
+      <em>CODERS</em>
+    </h1>
+    <p class="hero-sub">"We design what you don't notice."</p>
+    <div class="hero-scroll">
+      <span>scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- ABOUT / INTRO -->
+  <section class="section-wrap" id="about-section">
+    <div class="section-header">
+      <span class="section-num">00</span>
+      <span class="section-title">// WHO WE ARE</span>
+    </div>
+    <div class="about-grid">
+      <div class="about-label">
+      // ABOUT<br><br>
+      Initialized: 2024<br><br>
+      Location: Kozhikode, IN<br><br>
+      Nodes: 4<br><br>
+      Status: Active
+      </div>
+      <div class="about-content">
+        <h2 class="about-big">We operate<br><em>quietly.</em></h2>
+        <p class="about-text">
+          Illusive Coders is a team of four undergraduate engineering students
+          passionate about cybersecurity, system design, and modern web technologies.<br><br>
+
+          We started as a small study group, focusing on subjects like
+          networking, operating systems, and web development. Over time,
+          we expanded our learning through hackathons, coding challenges,
+          and collaborative projects.<br><br>
+
+          Our work includes building web-based applications, exploring
+          basic security testing techniques, and developing small tools
+          to understand system behavior and vulnerabilities.<br><br>
+
+          We are actively working towards strengthening our knowledge in
+          areas like web security, ethical hacking, and scalable system
+          design, aiming to create reliable and secure software solutions.
+        </p>
+
+        <div class="badges-row">
+        <div class="badge"><span>↳ SIH 2024 · Participant</span></div>
+        <div class="badge"><span>↳ Hackathons</span></div>
+        <div class="badge"><span>↳ CTF Platforms · TryHackMe / HTB</span></div>
+        <div class="badge"><span>↳ Web Security · Basics </span></div>
+        <div class="badge"><span>↳ Tools · Built for Learning</span></div>
+        <div class="badge"><span>↳ Projects · Academic + Personal</span></div>
+      </div>
+      </div>
+    </div>
+    </section>
+
+   <div class="stats-strip">
+      <div class="stat-box">
+        <span class="stat-num">10+</span>
+        <span class="stat-label">Projects Built</span>
+      </div>
+      <div class="stat-box">
+         <span class="stat-num">7+</span>
+        <span class="stat-label">Hackathons Explored</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">50+</span>
+        <span class="stat-label">CTF Challenges</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">∞</span>
+        <span class="stat-label">Curiosity Level</span>
+      </div>
+    </div>
+
+  <!-- TEAM -->
+  <section class="section-wrap" id="team-section">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">// THE TEAM</span>
+    </div>
+    <div class="members-grid">
+
+      <div class="member-card" id="mc1">
+        <span class="mc-num">01 / SECURITY · SYSTEMS</span>
+        <p class="mc-name">ATHULYAKRISHNA<br></p>
+        <span class="mc-role">Systems & Security</span>
+        <span class="mc-pos">↳ Focus: Networking · OS · CTF</span>
+        <p class="mc-bio">
+          Works on system-level concepts, networking, and security challenges.
+          Interested in understanding how systems behave under real-world conditions.
+        </p>
+        <div class="mc-skills">
+          <span class="mc-skill">PYTHON</span>
+          <span class="mc-skill">THREE.JS</span>
+          <span class="mc-skill">WIRESHARK</span>
+          <span class="mc-skill">LINUX</span>
+          <span class="mc-skill">CANVAS API</span>
+        </div>
+      </div>
+
+      <div class="member-card" id="mc2" style="transition-delay:.12s">
+        <span class="mc-num">02 / DEVELOPMENT · INTERFACE</span>
+        <p class="mc-name">ANUJA<br></p>
+        <span class="mc-role">Frontend & Tools</span>
+        <span class="mc-pos">↳ Focus: Web · UI · Tools</span>
+        <p class="mc-bio">
+          Builds interactive interfaces and tools for projects.
+          Focused on creating clean user experiences with technical depth.
+        </p>
+        <div class="mc-skills">
+          <span class="mc-skill">REACT</span>
+          <span class="mc-skill">NODE.JS</span>
+          <span class="mc-skill">GSAP</span>
+          <span class="mc-skill">JAVASCRIPT</span>
+          <span class="mc-skill">CSS</span>
+        </div>
+      </div>
+      <span class="mc-pos">↳ Team data partially hidden</span>
+    </div>
+  </section>
+
+  <!-- PROJECTS -->
+  <section class="section-wrap" id="projects-section">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-title">// SELECTED WORK</span>
+    </div>
+
+    <div class="project-row" id="pr1">
+      <span class="pr-num">01</span>
+      <div class="pr-info">
+        <span class="pr-name">SILENT LENS</span>
+        <p class="pr-desc">
+          Detects hidden camera access at system level.
+          Flags unauthorized processes instantly.
+        </p>
+        <span class="pr-meta">↳ Research Paper · Privacy Engineering</span>
+      </div>
+      <div class="pr-tags">
+        <span class="pr-tag">C</span>
+        <span class="pr-tag">RUST</span>
+        <span class="pr-tag">KERNEL</span>
+        <span class="pr-tag">LINUX</span>
+      </div>
+    </div>
+
+    <div class="project-row" id="pr3" style="transition-delay:.16s">
+      <span class="pr-num">02</span>
+      <div class="pr-info">
+        <span class="pr-name">PHISHFRAME</span>
+        <p class="pr-desc">
+          <p class="pr-desc">
+            Simulates phishing attacks in a controlled environment.
+            Tracks user responses to assess security awareness.
+          </p>
+        </p>
+        <span class="pr-meta">↳ Security Awareness</span>
+      </div>
+      <div class="pr-tags">
+        <span class="pr-tag">PYTHON</span>
+        <span class="pr-tag">FLASK</span>
+        <span class="pr-tag">DOCKER</span>
+        <span class="pr-tag">POSTGRES</span>
+      </div>
+    </div>
+
+    <div class="project-row" id="pr5" style="transition-delay:.32s">
+      <span class="pr-num">03</span>
+      <div class="pr-info">
+        <span class="pr-name">MALSCOPE</span>
+        <p class="pr-desc">
+          <p class="pr-desc">
+            Analyzes malware using static and dynamic methods.
+            Identifies behavioral patterns for classification.
+          </p>
+        </p>
+        <span class="pr-meta">↳ Research Tool · Malware Analysis · 2025</span>
+      </div>
+      <div class="pr-tags">
+        <span class="pr-tag">PYTHON</span>
+        <span class="pr-tag">PYTORCH</span>
+        <span class="pr-tag">YARA</span>
+        <span class="pr-tag">VIRUSTOTAL API</span>
+      </div>
+    </div>
+
+  </section>
+  <div class="analyze-wrap">
+    <span class="analyze-text">we noticed your behavior…</span>
+    <button id="btn-analyze" onclick="window.location.href='chaos.html'">See Results →</button>
+  </div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+// ══════════════════════════════════════════════
+//  BOOT SEQUENCE — simulated slow loader
+// ══════════════════════════════════════════════
+const bootLines = [
+  { text: '> Initialising secure tunnel...', cls: '',       delay: 200  },
+  { text: '> Verifying endpoint integrity...', cls: '',     delay: 650  },
+  { text: '> AES-256-GCM handshake...', cls: '',            delay: 1100 },
+  { text: '[ERR 0x4F] Certificate mismatch — retrying (1/3)', cls: 'red', delay: 1600 },
+  { text: '[ERR 0x4F] Certificate mismatch — retrying (2/3)', cls: 'red', delay: 2200 },
+  { text: '> Switching to fallback node...', cls: 'yellow', delay: 2800 },
+  { text: '> Fallback handshake accepted.', cls: '',         delay: 3400 },
+  { text: '> Loading encrypted payload...', cls: '',         delay: 3900 },
+  { text: '> Decrypting assets... OK', cls: 'green',         delay: 4700 },
+  { text: '> Route established. Connection secure.', cls: 'green', delay: 5300 },
+  { text: '> Launching portfolio interface...', cls: 'green', delay: 5900 },
+];
+
+const bootContainer = document.getElementById('boot-lines');
+const bootBarWrap   = document.getElementById('boot-bar-wrap');
+const bootBarFill   = document.getElementById('boot-bar-fill');
+const bootScreen    = document.getElementById('boot-screen');
+const mainContent   = document.getElementById('main-content');
+const pageFade      = document.getElementById('page-fade');
+
+// Fade in page immediately
+setTimeout(() => pageFade.classList.add('clear'), 100);
+
+// Show each boot line
+bootLines.forEach(({ text, cls, delay }) => {
+  setTimeout(() => {
+    const el = document.createElement('div');
+    el.className = 'boot-line show' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+    bootContainer.appendChild(el);
+    bootContainer.scrollTop = bootContainer.scrollHeight;
+  }, delay);
+});
+
+// Show progress bar at 1.5s
+setTimeout(() => {
+  bootBarWrap.classList.add('show');
+  // Animate bar — intentionally slow, stalls at 60% to simulate the error
+  let w = 0;
+  const barInterval = setInterval(() => {
+    if (w < 60) {
+      w += 1.2;
+    } else if (w < 62) {
+      // stall — simulating error
+      w += 0.05;
+    } else if (w < 100) {
+      w += 0.8;
+    } else {
+      clearInterval(barInterval);
+    }
+    bootBarFill.style.width = Math.min(w, 100) + '%';
+    bootBarFill.style.transition = 'width 0.08s linear';
+  }, 60);
+}, 1500);
+
+// After boot completes — reveal main content
+setTimeout(() => {
+  // Fade boot screen out
+  bootScreen.classList.add('hide');
+
+  setTimeout(() => {
+    bootScreen.style.display = 'none';
+    mainContent.style.opacity = '1';
+  }, 900);
+}, 7200);
+
+
+// ══════════════════════════════════════════════
+//  CURSOR
+// ══════════════════════════════════════════════
+const cur  = document.getElementById('cur');
+const ring = document.getElementById('cur-ring');
+document.addEventListener('mousemove', e => {
+  cur.style.left  = e.clientX + 'px';
+  cur.style.top   = e.clientY + 'px';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top  = e.clientY + 'px';
+});
+document.querySelectorAll('button, .member-card, .project-row, .badge, .rec-card').forEach(el => {
+  el.addEventListener('mouseenter', () => document.body.classList.add('hovering'));
+  el.addEventListener('mouseleave', () => document.body.classList.remove('hovering'));
+});
+
+
+// ══════════════════════════════════════════════
+//  HUD
+// ══════════════════════════════════════════════
+setInterval(() => {
+  const n = new Date();
+  document.getElementById('hud-time').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' +
+    String(n.getMinutes()).padStart(2,'0') + ':' +
+    String(n.getSeconds()).padStart(2,'0');
+}, 1000);
+
+let pkt = 0;
+setInterval(() => {
+  pkt = (pkt + Math.floor(Math.random()*88)+1) % 10000;
+  document.getElementById('hud-pkt').textContent =
+    'PKT :: ' + String(pkt).padStart(4,'0');
+}, 280);
+
+
+// ══════════════════════════════════════════════
+//  SCROLL REVEAL
+// ══════════════════════════════════════════════
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('visible');
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.member-card, .project-row, .rec-card').forEach(el => {
+  observer.observe(el);
+});
+
+
+// ══════════════════════════════════════════════
+//  TAB TITLE TRICK + NOTIFICATION
+// ══════════════════════════════════════════════
+let tabTrickDone = false;
+const teamObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting && !tabTrickDone) {
+      tabTrickDone = true;
+      startTabTrick();
+    }
+  });
+}, { threshold: 0.5 });
+teamObs.observe(document.getElementById('team-section'));
+
+function startTabTrick() {
+  const seq = [
+    { title: 'Illusive Coders',          delay: 0    },
+    { title: '(1) New Message',          delay: 3000 },
+    { title: 'Illusive Coders',          delay: 4500 },
+    { title: 'hey… are you alone? 👀',   delay: 6500 },
+    { title: 'Illusive Coders',          delay: 8000 },
+  ];
+  seq.forEach(({ title, delay }) => setTimeout(() => { document.title = title; }, delay));
+  setTimeout(showNotif, 7000);
+}
+
+function showNotif() {
+  document.getElementById('notif-time').textContent = 'now';
+  document.getElementById('notif-popup').classList.add('show');
+  setTimeout(() => {
+    if (document.getElementById('notif-popup').classList.contains('show')) dismissNotif();
+  }, 9000);
+}
+
+function dismissNotif() {
+  document.getElementById('notif-popup').classList.remove('show');
+}
+</script>
+</body>
+</html>

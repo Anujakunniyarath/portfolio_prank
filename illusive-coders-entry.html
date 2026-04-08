@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Illusive Coders</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:     #050608;
+    --green:  #00ff41;
+    --cyan:   #00ffe1;
+    --dim:    rgba(0,255,65,0.18);
+    --font:   'IBM Plex Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    touch-action: none;
+    cursor: none;
+  }
+
+  /* ── MATRIX CANVAS ── */
+  #matrix-canvas {
+    position: fixed; inset: 0; z-index: 0; opacity: 0;
+  }
+
+  /* ── SCANLINES ── */
+  #scanlines {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.09) 2px, rgba(0,0,0,0.09) 4px
+    );
+  }
+
+  /* ── VIGNETTE ── */
+  #vignette {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.82) 100%);
+  }
+
+  /* ── NOISE ── */
+  #noise {
+    position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: .03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ── CURSOR ── */
+  #cursor-dot {
+    position: fixed; z-index: 9999; pointer-events: none;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green), 0 0 22px rgba(0,255,65,0.5);
+    transform: translate(-50%,-50%);
+    mix-blend-mode: screen;
+    transition: width .15s, height .15s, background .2s, box-shadow .2s;
+  }
+  #cursor-ring {
+    position: fixed; z-index: 9998; pointer-events: none;
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid rgba(0,255,65,0.3);
+    transform: translate(-50%,-50%);
+    transition: left .09s ease, top .09s ease, width .2s, height .2s, border-color .25s;
+  }
+  body.on-btn #cursor-dot {
+    width: 11px; height: 11px;
+    background: var(--cyan);
+    box-shadow: 0 0 14px var(--cyan), 0 0 35px rgba(0,255,225,0.55);
+  }
+  body.on-btn #cursor-ring {
+    width: 54px; height: 54px;
+    border-color: rgba(0,255,225,0.45);
+  }
+
+  /* ── HUD ── */
+  .hud {
+    position: fixed; z-index: 10; pointer-events: none;
+    font-size: 0.5rem; letter-spacing: 0.22em;
+    color: rgba(0,255,65,0.25); text-transform: uppercase; line-height: 2;
+  }
+  .hud-tl { top: 1.8rem; left: 2rem; }
+  .hud-tr { top: 1.8rem; right: 2rem; text-align: right; }
+  .hud-bl { bottom: 1.8rem; left: 2rem; }
+  .hud-br { bottom: 1.8rem; right: 2rem; text-align: right; }
+  .hud .hi { color: rgba(0,255,65,0.55); }
+  .sdot {
+    display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 5px var(--green);
+    margin-right: 5px; vertical-align: middle;
+    animation: sdotblink 1.8s ease-in-out infinite;
+  }
+  @keyframes sdotblink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+  /* ── ILLUSION LAYER ── */
+  #illusion-layer {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none;
+  }
+  .term-line {
+    position: absolute; font-size: 0.55rem; letter-spacing: 0.1em;
+    color: rgba(0,255,65,0.15); white-space: nowrap;
+    pointer-events: none; user-select: none;
+  }
+  .glitch-bar {
+    position: absolute; height: 1px; background: var(--green);
+    opacity: 0; pointer-events: none;
+  }
+  .hex-col {
+    position: absolute; top: 0;
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 0.58rem; letter-spacing: 0.06em;
+    color: rgba(0,255,65,0.13); pointer-events: none; user-select: none;
+  }
+
+  /* ── TITLE ── */
+  #title-wrap {
+    position: fixed; inset: 0; z-index: 6; pointer-events: none;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0.1em;
+    padding-bottom: 8vh;
+  }
+  .title-row { display: flex; gap: 0.06em; }
+
+  .letter {
+    display: inline-block;
+    font-size: clamp(3.8rem, 10vw, 9rem);
+    font-weight: 600;
+    color: var(--green);
+    text-shadow:
+      0 0 10px rgba(0,255,65,0.9),
+      0 0 30px rgba(0,255,65,0.45),
+      0 0 70px rgba(0,255,65,0.15);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    will-change: transform, opacity;
+    transform: translateY(-120vh);
+    opacity: 0;
+  }
+
+  /* ── TAGLINE ── */
+  #tagline {
+    position: fixed; z-index: 6; pointer-events: none;
+    bottom: 22vh; left: 50%; transform: translateX(-50%);
+    font-size: 0.58rem; letter-spacing: 0.42em;
+    color: rgba(0,255,65,0.3); text-transform: uppercase;
+    white-space: nowrap; opacity: 0;
+  }
+
+  /* ── EXPLORE BUTTON ── */
+  #btn-explore {
+    position: fixed; z-index: 10;
+    bottom: 10vh; left: 50%; transform: translateX(-50%);
+    opacity: 0;
+    background: transparent;
+    border: 1px solid rgba(0,255,65,0.4);
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 0.7rem; letter-spacing: 0.38em;
+    text-transform: uppercase;
+    padding: 1.1rem 3.2rem;
+    cursor: none; white-space: nowrap;
+    box-shadow: 0 0 10px rgba(0,255,65,0.12), inset 0 0 10px rgba(0,255,65,0.04);
+    transition: color .3s, border-color .3s, box-shadow .3s;
+    overflow: hidden;
+  }
+  #btn-explore::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(0,255,65,0.07);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.38s cubic-bezier(0.65,0,0.35,1);
+  }
+  #btn-explore:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 22px rgba(0,255,225,0.28), inset 0 0 16px rgba(0,255,225,0.06); }
+  #btn-explore:hover::before { transform: scaleX(1); }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+<div id="illusion-layer"></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="noise"></div>
+
+<!-- HUD -->
+<div class="hud hud-tl">
+  <div class="hi"><span class="sdot"></span>Illusive Coders</div>
+  <div>System :: Active</div>
+  <div>Node :: IC-0x4F2A</div>
+</div>
+<div class="hud hud-tr">
+  <div class="hi" id="hud-time">--:--:--</div>
+  <div>Build :: v2.5.1</div>
+  <div id="hud-xy">X:000 Y:000</div>
+</div>
+<div class="hud hud-bl">
+  <div>Encryption :: AES-256</div>
+  <div>Status :: <span class="hi">Undetected</span></div>
+</div>
+<div class="hud hud-br">
+  <div id="hud-pkt">PKT :: 0000</div>
+  <div>Latency :: 2ms</div>
+</div>
+
+<!-- Title -->
+<div id="title-wrap">
+  <div class="title-row" id="row1"></div>
+  <div class="title-row" id="row2"></div>
+</div>
+
+<!-- Tagline -->
+<div id="tagline">"We design what you don't notice."</div>
+
+<!-- Button -->
+<button id="btn-explore" onclick="window.location.href='illusive-coders-portfolio.html'">
+  Explore Our Team
+</button>
+
+<!-- Cursor -->
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+
+<!-- GSAP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+<script>
+// ══════════════════════════════════
+//  MATRIX RAIN
+// ══════════════════════════════════
+const mc   = document.getElementById('matrix-canvas');
+const mctx = mc.getContext('2d');
+const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&<>{}[]|01アイウエオカキ';
+let cols, drops, matRaf;
+
+function initMat() {
+  mc.width  = window.innerWidth;
+  mc.height = window.innerHeight;
+  cols  = Math.floor(mc.width / 18);
+  drops = Array.from({ length: cols }, () => Math.random() * -80);
+}
+initMat();
+window.addEventListener('resize', initMat);
+
+function drawMat() {
+  mctx.fillStyle = 'rgba(5,6,8,0.055)';
+  mctx.fillRect(0, 0, mc.width, mc.height);
+  for (let i = 0; i < cols; i++) {
+    const ch = CHARS[Math.floor(Math.random() * CHARS.length)];
+    const x  = i * 18, y = drops[i] * 18;
+    mctx.font = '13px "IBM Plex Mono", monospace';
+    mctx.fillStyle = 'rgba(210,255,220,0.85)';
+    mctx.fillText(ch, x, y);
+    mctx.fillStyle = 'rgba(0,200,50,0.38)';
+    mctx.fillText(CHARS[Math.floor(Math.random() * CHARS.length)], x, y - 18);
+    if (y > mc.height && Math.random() > 0.974) drops[i] = 0;
+    drops[i] += 0.38;
+  }
+  matRaf = requestAnimationFrame(drawMat);
+}
+
+function startMat() { if (!matRaf) matRaf = requestAnimationFrame(drawMat); }
+function stopMat()  { if (matRaf) { cancelAnimationFrame(matRaf); matRaf = null; } }
+
+
+// ══════════════════════════════════
+//  CURSOR
+// ══════════════════════════════════
+const dot   = document.getElementById('cursor-dot');
+const ring  = document.getElementById('cursor-ring');
+const btn   = document.getElementById('btn-explore');
+
+document.addEventListener('mousemove', e => {
+  dot.style.left  = e.clientX + 'px';
+  dot.style.top   = e.clientY + 'px';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top  = e.clientY + 'px';
+  document.getElementById('hud-xy').textContent =
+    'X:' + String(e.clientX).padStart(3,'0') +
+    ' Y:' + String(e.clientY).padStart(3,'0');
+});
+
+btn.addEventListener('mouseenter', () => {
+  document.body.classList.add('on-btn');
+  // hide illusion while on button
+  gsap.to('#illusion-layer', { opacity: 0, duration: 0.5 });
+  stopMat();
+  gsap.to(mc, { opacity: 0, duration: 0.5 });
+});
+btn.addEventListener('mouseleave', () => {
+  document.body.classList.remove('on-btn');
+  gsap.to('#illusion-layer', { opacity: 1, duration: 0.5 });
+  startMat();
+  gsap.to(mc, { opacity: 0.16, duration: 0.8 });
+});
+
+
+// ══════════════════════════════════
+//  HUD LIVE
+// ══════════════════════════════════
+setInterval(() => {
+  const n = new Date();
+  document.getElementById('hud-time').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' +
+    String(n.getMinutes()).padStart(2,'0') + ':' +
+    String(n.getSeconds()).padStart(2,'0');
+}, 1000);
+
+let pkt = 0;
+setInterval(() => {
+  pkt = (pkt + Math.floor(Math.random()*88)+1) % 10000;
+  document.getElementById('hud-pkt').textContent = 'PKT :: '+String(pkt).padStart(4,'0');
+}, 280);
+
+
+// ══════════════════════════════════
+//  ILLUSION LAYER
+// ══════════════════════════════════
+const IL = document.getElementById('illusion-layer');
+const TERMS = [
+  '> Initiating handshake...',
+  '> Bypassing firewall...',
+  '> Access granted.',
+  '> Scanning 192.168.1.0/24',
+  '> Payload compiled.',
+  '> Encrypting channel...',
+  '> Proxies routed: 7/7',
+  '> Trace obfuscated.',
+  '> Running exploit.py',
+  '> sudo ./breach --target=all',
+  '> Root access acquired.',
+  '> Stealth mode: ON',
+  '> [!] Anomaly — suppressed.',
+  '> Hash: 0x4F2A9C1D',
+  '> Packet injection complete.',
+  '> [IC] We design what you don\'t notice.',
+  '> VPN chain: 12 nodes',
+  '> Deploying phantom payload...',
+  '> Identity masked.',
+  '> Kernel patched.',
+];
+
+function buildIllusion() {
+  IL.innerHTML = '';
+
+  // Terminal floating lines
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement('div');
+    el.className = 'term-line';
+    el.style.left = Math.random() * 88 + '%';
+    el.style.top  = Math.random() * 88 + '%';
+    el.textContent = TERMS[Math.floor(Math.random() * TERMS.length)];
+    el.style.fontSize = (Math.random() * 0.18 + 0.44) + 'rem';
+    IL.appendChild(el);
+    animTermLine(el);
+  }
+
+  // Glitch bars
+  for (let i = 0; i < 10; i++) {
+    const el = document.createElement('div');
+    el.className = 'glitch-bar';
+    el.style.top   = Math.random() * 100 + '%';
+    el.style.left  = Math.random() * 65 + '%';
+    el.style.width = (Math.random() * 14 + 3) + '%';
+    IL.appendChild(el);
+    animGlitchBar(el);
+  }
+
+  // Hex columns
+  for (let i = 0; i < 12; i++) {
+    const col = document.createElement('div');
+    col.className = 'hex-col';
+    col.style.left = (i * 8.5 + Math.random()*4) + '%';
+    for (let j = 0; j < 6; j++) {
+      const span = document.createElement('div');
+      span.textContent = randHex();
+      col.appendChild(span);
+    }
+    IL.appendChild(col);
+    animHexCol(col);
+  }
+}
+
+function randHex() {
+  return '0x' + Math.floor(Math.random()*0xFFFFFF).toString(16).toUpperCase().padStart(6,'0');
+}
+
+function animTermLine(el) {
+  gsap.set(el, { opacity: 0 });
+  gsap.to(el, {
+    opacity: Math.random() * 0.2 + 0.05,
+    duration: 0.4,
+    delay: Math.random() * 2,
+    onComplete() {
+      setTimeout(() => {
+        el.textContent = TERMS[Math.floor(Math.random()*TERMS.length)];
+        el.style.left = Math.random() * 88 + '%';
+        el.style.top  = Math.random() * 88 + '%';
+        gsap.to(el, { opacity: 0, duration: 0.35,
+          delay: Math.random() * 2.5 + 1,
+          onComplete: () => animTermLine(el) });
+      }, (Math.random()*2+1.2)*1000);
+    }
+  });
+}
+
+function animGlitchBar(el) {
+  gsap.to(el, {
+    opacity: Math.random() * 0.22,
+    duration: 0.04,
+    delay: Math.random() * 1.5,
+    onComplete() {
+      gsap.to(el, {
+        opacity: 0, duration: 0.04, delay: 0.06,
+        onComplete() {
+          el.style.top   = Math.random()*100+'%';
+          el.style.left  = Math.random()*65+'%';
+          el.style.width = (Math.random()*14+3)+'%';
+          animGlitchBar(el);
+        }
+      });
+    }
+  });
+}
+
+function animHexCol(col) {
+  const spans = col.querySelectorAll('div');
+  gsap.fromTo(col,
+    { y: -window.innerHeight * 0.3, opacity: 0 },
+    {
+      y: window.innerHeight * 1.1,
+      opacity: Math.random() * 0.18 + 0.05,
+      duration: Math.random() * 5 + 4,
+      ease: 'none',
+      delay: Math.random() * 3,
+      onUpdate() {
+        spans.forEach(s => s.textContent = randHex());
+      },
+      onComplete() {
+        col.style.left = (Math.random() * 95) + '%';
+        animHexCol(col);
+      }
+    }
+  );
+}
+
+
+// ══════════════════════════════════
+//  LETTERS
+// ══════════════════════════════════
+function buildRow(word, id) {
+  const row = document.getElementById(id);
+  row.innerHTML = '';
+  [...word].forEach(ch => {
+    const s = document.createElement('span');
+    s.className = 'letter';
+    s.textContent = ch;
+    row.appendChild(s);
+    return s;
+  });
+}
+buildRow('ILLUSIVE', 'row1');
+buildRow('CODERS',   'row2');
+
+function dropLetters() {
+  const letters = document.querySelectorAll('.letter');
+  const tl = gsap.timeline();
+
+  // each letter falls with slight stagger — bounce on land
+  letters.forEach((el, i) => {
+    tl.to(el, {
+      y: 0,
+      opacity: 1,
+      duration: 0.6,
+      ease: 'bounce.out',
+    }, i * 0.075);
+  });
+
+  // glow pulse after all land
+  tl.to('.letter', {
+    textShadow:
+      '0 0 20px rgba(0,255,65,1), 0 0 60px rgba(0,255,65,0.65), 0 0 120px rgba(0,255,65,0.22)',
+    duration: 0.35,
+    stagger: 0.04,
+    yoyo: true,
+    repeat: 1,
+  }, '+=0.1');
+
+  return tl;
+}
+
+
+// ══════════════════════════════════
+//  LETTER SCRAMBLE on btn hover
+// ══════════════════════════════════
+const SC = '!@#$%^&*<>{}[]|01XZQ';
+btn.addEventListener('mouseenter', () => {
+  document.querySelectorAll('.letter').forEach((el, i) => {
+    const orig = el.textContent;
+    let n = 0;
+    const iv = setInterval(() => {
+      el.textContent = SC[Math.floor(Math.random()*SC.length)];
+      el.style.color = n % 2 === 0 ? 'var(--cyan)' : 'var(--green)';
+      if (++n > 5) {
+        clearInterval(iv);
+        el.textContent = orig;
+        el.style.color = 'var(--green)';
+      }
+    }, 40 + i * 12);
+  });
+});
+
+
+// ══════════════════════════════════
+//  MASTER INTRO TIMELINE
+// ══════════════════════════════════
+function runIntro() {
+  buildIllusion();
+
+  const tl = gsap.timeline({
+    onComplete() {
+      // reveal illusion layer + matrix after letters land
+      startMat();
+      gsap.to(mc,             { opacity: 0.16, duration: 1.8 });
+      gsap.to('#illusion-layer', { opacity: 1, duration: 1.2 });
+    }
+  });
+
+  // matrix subtle fade in early
+  tl.to(mc, { opacity: 0.06, duration: 2.5, ease: 'power1.inOut' }, 0);
+
+  // drop letters
+  tl.add(dropLetters(), 0.2);
+
+  // tagline fades in
+  tl.to('#tagline', { opacity: 1, duration: 1, ease: 'power2.out' }, '-=0.4');
+
+  // button fades up
+  tl.to('#btn-explore', { opacity: 1, duration: 0.8, ease: 'power3.out' }, '-=0.3');
+}
+
+window.addEventListener('load', () => setTimeout(runIntro, 250));
+</script>
+</body>
+</html>

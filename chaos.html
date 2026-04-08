@@ -1,0 +1,885 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SYSTEM ERROR — Illusive Coders</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:    #050608;
+  --green: #00ff41;
+  --cyan:  #00ffe1;
+  --red:   #ff3b3b;
+  --amber: #ffb800;
+  --font:  'IBM Plex Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  cursor: none;
+  overflow: hidden;
+}
+
+/* ── SCANLINES ── */
+#scanlines {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.09) 2px, rgba(0,0,0,0.09) 4px
+  );
+}
+#vignette {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.88) 100%);
+}
+
+/* ── CURSOR ── */
+#cursor-dot {
+  position: fixed; z-index: 99999; pointer-events: none;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red), 0 0 22px rgba(255,59,59,0.5);
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+  transition: background .2s, box-shadow .2s;
+}
+#cursor-ring {
+  position: fixed; z-index: 99998; pointer-events: none;
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid rgba(255,59,59,0.3);
+  transform: translate(-50%,-50%);
+  transition: left .09s ease, top .09s ease;
+}
+
+/* ── MATRIX CANVAS ── */
+#matrix-canvas {
+  position: fixed; inset: 0; z-index: 0; opacity: 0.08;
+}
+
+/* ── RED FLASH OVERLAY ── */
+#flash {
+  position: fixed; inset: 0; z-index: 4; pointer-events: none;
+  background: rgba(255,0,0,0);
+  transition: background 0.05s;
+}
+
+/* ── BG SCREEN — broken terminal ── */
+#bg-screen {
+  position: fixed; inset: 0; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0.4rem;
+  opacity: 0.12;
+  user-select: none; pointer-events: none;
+}
+.bg-line {
+  font-size: 0.6rem;
+  color: var(--red);
+  letter-spacing: 0.1em;
+  animation: bgLineBlink 3s ease infinite;
+}
+@keyframes bgLineBlink {
+  0%,100%{opacity:0.4} 50%{opacity:1}
+}
+
+/* ── POPUP BASE ── */
+.popup {
+  position: fixed;
+  z-index: 100;
+  background: #0a0c0a;
+  border: 1px solid rgba(255,59,59,0.5);
+  box-shadow:
+    0 0 0 1px rgba(255,59,59,0.1),
+    0 0 30px rgba(255,59,59,0.12),
+    0 20px 60px rgba(0,0,0,0.8);
+  min-width: 280px;
+  max-width: 380px;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(.34,1.56,.64,1);
+  cursor: none;
+  user-select: none;
+}
+.popup.show {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Shake animation for some popups */
+.popup.shake {
+  animation: popShake 0.35s cubic-bezier(.36,.07,.19,.97);
+}
+@keyframes popShake {
+  10%,90%{transform:scale(1) translate(-1px,0)}
+  20%,80%{transform:scale(1) translate(2px,0)}
+  30%,50%,70%{transform:scale(1) translate(-2px,0)}
+  40%,60%{transform:scale(1) translate(2px,0)}
+}
+
+/* Popup title bar */
+.popup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid rgba(255,59,59,0.2);
+  background: rgba(255,59,59,0.06);
+}
+.popup-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+  color: var(--red);
+}
+.popup-icon { font-size: 0.7rem; }
+.popup-close-btn {
+  width: 16px; height: 16px;
+  border: 1px solid rgba(255,59,59,0.3);
+  background: transparent;
+  color: var(--red);
+  font-size: 0.5rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: none;
+  opacity: 0.6;
+  transition: opacity .2s, background .2s;
+  flex-shrink: 0;
+}
+.popup-close-btn:hover { opacity: 1; background: rgba(255,59,59,0.15); }
+
+/* Popup body */
+.popup-body {
+  padding: 1.2rem 1.1rem;
+}
+.popup-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--red);
+  letter-spacing: 0.1em;
+  margin-bottom: 0.7rem;
+  text-transform: uppercase;
+}
+.popup-msg {
+  font-size: 0.6rem;
+  color: rgba(0,255,65,0.5);
+  letter-spacing: 0.06em;
+  line-height: 1.9;
+}
+.popup-msg b { color: rgba(0,255,65,0.85); font-weight: 400; }
+.popup-msg .red { color: var(--red); }
+.popup-msg .amber { color: var(--amber); }
+
+/* Code block inside popup */
+.popup-code {
+  margin-top: 0.8rem;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,59,59,0.12);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.52rem;
+  color: rgba(0,255,65,0.35);
+  letter-spacing: 0.06em;
+  line-height: 1.8;
+  overflow: hidden;
+}
+
+/* Popup footer */
+.popup-footer {
+  border-top: 1px solid rgba(255,59,59,0.12);
+  padding: 0.7rem 1.1rem;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+.popup-btn {
+  background: transparent;
+  border: 1px solid rgba(255,59,59,0.3);
+  color: rgba(0,255,65,0.5);
+  font-family: var(--font);
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  padding: 0.45rem 1rem;
+  cursor: none;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.popup-btn:hover { border-color: var(--red); color: var(--red); background: rgba(255,59,59,0.06); }
+.popup-btn.primary {
+  border-color: rgba(0,255,65,0.3);
+  color: var(--green);
+}
+.popup-btn.primary:hover { border-color: var(--green); background: rgba(0,255,65,0.06); }
+
+/* Progress bar popup */
+.popup-progress-wrap {
+  margin-top: 0.8rem;
+  border: 1px solid rgba(255,59,59,0.15);
+  height: 6px;
+  background: rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.popup-progress-bar {
+  height: 100%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red);
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+/* Ping/status popup */
+.ping-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.55rem;
+}
+.ping-row:last-child { border-bottom: none; }
+.ping-label { color: rgba(0,255,65,0.4); letter-spacing: 0.08em; }
+.ping-val { color: var(--red); letter-spacing: 0.1em; }
+.ping-val.ok { color: var(--green); }
+.ping-val.warn { color: var(--amber); }
+
+/* ── GLITCH OVERLAY ── */
+#glitch-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+}
+.g-bar {
+  position: absolute; left: 0; right: 0;
+  background: var(--green);
+  mix-blend-mode: screen;
+}
+
+/* ── COUNTER OVERLAY ── */
+#counter-screen {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+#counter-screen.show { opacity: 1; pointer-events: all; }
+
+.cs-tag {
+  font-size: 0.55rem;
+  color: var(--red);
+  letter-spacing: 0.35em;
+  animation: csBlink 0.8s ease infinite;
+}
+@keyframes csBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+.cs-num {
+  font-size: clamp(6rem, 25vw, 14rem);
+  font-weight: 600;
+  color: var(--green);
+  text-shadow:
+    0 0 20px rgba(0,255,65,0.9),
+    0 0 60px rgba(0,255,65,0.4),
+    0 0 120px rgba(0,255,65,0.15);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-msg {
+  font-size: 0.6rem;
+  color: rgba(0,255,65,0.35);
+  letter-spacing: 0.25em;
+}
+
+/* ── HUD (same as entry) ── */
+.hud {
+  position: fixed; z-index: 10; pointer-events: none;
+  font-size: 0.5rem; letter-spacing: 0.22em;
+  color: rgba(0,255,65,0.25); text-transform: uppercase; line-height: 2;
+}
+.hud-tl { top: 1.8rem; left: 2rem; }
+.hud-tr { top: 1.8rem; right: 2rem; text-align: right; }
+.hud-bl { bottom: 1.8rem; left: 2rem; }
+.hud-br { bottom: 1.8rem; right: 2rem; text-align: right; }
+.hud .hi { color: rgba(255,59,59,0.7); }
+.sdot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--red); box-shadow: 0 0 5px var(--red);
+  margin-right: 5px; vertical-align: middle;
+  animation: sdotblink 0.6s ease-in-out infinite;
+}
+@keyframes sdotblink { 0%,100%{opacity:1} 50%{opacity:.1} }
+
+/* Mobile adjust */
+@media(max-width:500px){
+  .popup { min-width: 240px; max-width: 90vw; }
+  .hud-bl, .hud-br { display: none; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="flash"></div>
+
+<!-- BG broken terminal text -->
+<div id="bg-screen">
+  <div class="bg-line">CRITICAL SYSTEM FAILURE — CODE 0xDEAD</div>
+  <div class="bg-line">MEMORY CORRUPTION DETECTED</div>
+  <div class="bg-line">KERNEL PANIC — NOT SYNCING</div>
+  <div class="bg-line">STACK TRACE OVERFLOW</div>
+  <div class="bg-line">FATAL ERROR :: IC_MODULE_BREACH</div>
+  <div class="bg-line">DUMPING CORE...</div>
+</div>
+
+<!-- HUD -->
+<div class="hud hud-tl">
+  <div class="hi"><span class="sdot"></span>BREACH DETECTED</div>
+  <div>System :: <span class="hi">COMPROMISED</span></div>
+  <div>Node :: IC-0x4F2A</div>
+</div>
+<div class="hud hud-tr">
+  <div class="hi" id="hud-time">--:--:--</div>
+  <div>Errors :: <span class="hi" id="err-count">000</span></div>
+  <div>Status :: <span class="hi">CRITICAL</span></div>
+</div>
+<div class="hud hud-bl">
+  <div>Memory :: <span class="hi">OVERFLOW</span></div>
+  <div>Firewall :: <span class="hi">BREACHED</span></div>
+</div>
+<div class="hud hud-br">
+  <div>PKT LOSS :: <span class="hi" id="pkt-loss">0%</span></div>
+  <div>Threat :: <span class="hi">LEVEL 5</span></div>
+</div>
+
+<!-- POPUP CONTAINER -->
+<div id="popup-container"></div>
+
+<!-- Glitch overlay -->
+<div id="glitch-overlay"></div>
+
+<!-- Counter screen -->
+<div id="counter-screen">
+  <span class="cs-tag">▶ REBOOTING SYSTEM</span>
+  <div class="cs-num" id="cs-num">3</div>
+  <div class="cs-msg">INITIATING RECOVERY PROTOCOL...</div>
+</div>
+
+<!-- Cursor -->
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+<script>
+// ══════════════════════════════════════════
+//  ILLUSIVE CODERS — ERROR CHAOS PAGE
+// ══════════════════════════════════════════
+
+// ── Cursor ──
+const dot  = document.getElementById('cursor-dot');
+const ring = document.getElementById('cursor-ring');
+document.addEventListener('mousemove', e => {
+  dot.style.left  = e.clientX + 'px';
+  dot.style.top   = e.clientY + 'px';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top  = e.clientY + 'px';
+  document.getElementById('hud-xy') &&
+    (document.getElementById('hud-xy').textContent =
+      'X:' + String(e.clientX).padStart(3,'0') +
+      ' Y:' + String(e.clientY).padStart(3,'0'));
+});
+
+// ── Matrix rain (red-tinted) ──
+const mc   = document.getElementById('matrix-canvas');
+const mctx = mc.getContext('2d');
+const CHARS = '01ABCDEF!@#$%><[]{}|アイウエオERROR';
+let cols, drops;
+
+function initMat(){
+  mc.width  = window.innerWidth;
+  mc.height = window.innerHeight;
+  cols  = Math.floor(mc.width / 18);
+  drops = Array.from({length:cols}, () => Math.random()*-60);
+}
+initMat();
+window.addEventListener('resize', initMat);
+
+(function drawMat(){
+  mctx.fillStyle = 'rgba(5,6,8,0.07)';
+  mctx.fillRect(0,0,mc.width,mc.height);
+  for(let i=0;i<cols;i++){
+    const ch = CHARS[Math.floor(Math.random()*CHARS.length)];
+    const x=i*18, y=drops[i]*18;
+    // alternate red / green for chaos feel
+    mctx.fillStyle = i%3===0 ? 'rgba(255,59,59,0.5)' : 'rgba(0,200,50,0.25)';
+    mctx.font = '12px "IBM Plex Mono",monospace';
+    mctx.fillText(ch,x,y);
+    if(y>mc.height && Math.random()>0.97) drops[i]=0;
+    drops[i]+=0.4;
+  }
+  requestAnimationFrame(drawMat);
+})();
+
+// ── HUD live ──
+setInterval(()=>{
+  const n=new Date();
+  document.getElementById('hud-time').textContent =
+    String(n.getHours()).padStart(2,'0')+':'+
+    String(n.getMinutes()).padStart(2,'0')+':'+
+    String(n.getSeconds()).padStart(2,'0');
+},1000);
+
+let pktLoss=0;
+setInterval(()=>{
+  pktLoss = Math.min(100, pktLoss + Math.random()*3);
+  document.getElementById('pkt-loss').textContent = pktLoss.toFixed(0)+'%';
+},400);
+
+// Error counter
+let errCount=0;
+function incErr(){
+  errCount++;
+  const el=document.getElementById('err-count');
+  if(el) el.textContent=String(errCount).padStart(3,'0');
+}
+
+// Flash red
+function flashRed(){
+  const f=document.getElementById('flash');
+  f.style.background='rgba(255,0,0,0.08)';
+  setTimeout(()=> f.style.background='rgba(255,0,0,0)',80);
+}
+
+// ── POPUP TEMPLATES ──
+const POPUPS = [
+
+  // 1. Critical system error
+  {
+    id:'p1', w:340, title:'CRITICAL_ERROR', icon:'⛔',
+    html:`
+      <div class="popup-title">SYSTEM BREACH DETECTED</div>
+      <div class="popup-msg">
+        <span class="red">FATAL:</span> Unauthorized access attempt on<br>
+        node <b>IC-0x4F2A</b>. Kernel integrity<br>
+        compromised. Dumping memory...<br><br>
+        <span class="amber">WARNING:</span> <b>14 processes</b> terminated.
+      </div>
+      <div class="popup-code">
+        > PANIC: double fault, error_code:0x0<br>
+        > RIP: 0x00000000deadbeef<br>
+        > Kernel Offset: <span style="color:var(--red)">0x1F4A000</span><br>
+        > ---[ end Kernel panic ]---
+      </div>`,
+    btns:[{t:'IGNORE',p:false},{t:'TERMINATE',p:true}]
+  },
+
+  // 2. Memory overflow
+  {
+    id:'p2', w:300, title:'MEM_OVERFLOW', icon:'⚠',
+    html:`
+      <div class="popup-title">MEMORY STACK OVERFLOW</div>
+      <div class="popup-msg">
+        Available memory: <span class="red"><b>0 bytes</b></span><br>
+        Used: <b>100%</b> — System unstable.<br><br>
+        <span class="amber">Recommend:</span> Immediate shutdown.
+      </div>
+      <div class="popup-progress-wrap">
+        <div class="popup-progress-bar" id="mem-bar"></div>
+      </div>`,
+    btns:[{t:'FORCE QUIT',p:false}]
+  },
+
+  // 3. Firewall breach
+  {
+    id:'p3', w:360, title:'FIREWALL_BREACH', icon:'🔓',
+    html:`
+      <div class="popup-title">FIREWALL COMPROMISED</div>
+      <div class="popup-msg">
+        <span class="red">⚡ INTRUSION DETECTED</span><br><br>
+        Origin IP: <b>---.---.---.---</b><br>
+        Method: <b>SQL Injection + XSS</b><br>
+        Packets intercepted: <b class="red">4,729</b><br><br>
+        Attempting to reroute... <span class="amber">FAILED.</span>
+      </div>`,
+    btns:[{t:'TRACE',p:false},{t:'BLOCK ALL',p:true}]
+  },
+
+  // 4. Ping status
+  {
+    id:'p4', w:280, title:'NETWORK_STATUS', icon:'📡',
+    html:`
+      <div class="popup-title">CONNECTION STATUS</div>
+      <div class="ping-row"><span class="ping-label">GATEWAY</span><span class="ping-val">UNREACHABLE</span></div>
+      <div class="ping-row"><span class="ping-label">DNS</span><span class="ping-val">TIMEOUT</span></div>
+      <div class="ping-row"><span class="ping-label">VPN</span><span class="ping-val warn">UNSTABLE</span></div>
+      <div class="ping-row"><span class="ping-label">PROXY</span><span class="ping-val">DISCONNECTED</span></div>
+      <div class="ping-row"><span class="ping-label">TOR NODE</span><span class="ping-val ok">ACTIVE</span></div>`,
+    btns:[{t:'RECONNECT',p:true}]
+  },
+
+  // 5. Process kill
+  {
+    id:'p5', w:320, title:'PROCESS_KILLED', icon:'💀',
+    html:`
+      <div class="popup-title">7 PROCESSES TERMINATED</div>
+      <div class="popup-code">
+        kill -9 sys.core [✓]<br>
+        kill -9 auth.module [✓]<br>
+        kill -9 encrypt.daemon [✓]<br>
+        kill -9 firewall.service [✓]<br>
+        <span style="color:var(--red)">kill -9 YOU [PENDING...]</span>
+      </div>`,
+    btns:[{t:'ABORT',p:false},{t:'RUN ANYWAY',p:true}]
+  },
+
+  // 6. Identity exposed
+  {
+    id:'p6', w:310, title:'IDENTITY_EXPOSED', icon:'👁',
+    html:`
+      <div class="popup-title">IDENTITY EXPOSED</div>
+      <div class="popup-msg">
+        Your session fingerprint has been<br>
+        logged by <b>3 unknown entities</b>.<br><br>
+        Browser: <b>IDENTIFIED</b><br>
+        Location: <span class="red"><b>TRIANGULATED</b></span><br>
+        Device: <b>MIRRORED</b>
+      </div>`,
+    btns:[{t:'GO DARK',p:true}]
+  },
+
+  // 7. Access revoked
+  {
+    id:'p7', w:300, title:'ACCESS_REVOKED', icon:'🚫',
+    html:`
+      <div class="popup-title">ROOT ACCESS REVOKED</div>
+      <div class="popup-msg">
+        Privilege escalation attempt <span class="red">blocked</span>.<br><br>
+        Attempts remaining: <span class="red"><b>0</b></span><br>
+        Account status: <span class="red"><b>SUSPENDED</b></span><br><br>
+        <span class="amber">Next attempt triggers self-destruct.</span>
+      </div>`,
+    btns:[{t:'OVERRIDE',p:false},{t:'COMPLY',p:true}]
+  },
+
+  // 8. Data corruption
+  {
+    id:'p8', w:350, title:'DATA_CORRUPTION', icon:'⚡',
+    html:`
+      <div class="popup-title">CRITICAL DATA CORRUPTION</div>
+      <div class="popup-code">
+        [ERR] Block 0x00A4: BAD SECTOR<br>
+        [ERR] Block 0x00A5: UNREADABLE<br>
+        [ERR] Block 0x00A6: MISSING<br>
+        [WARN] Parity check: <span style="color:var(--red)">FAILED</span><br>
+        [WARN] Backup: <span style="color:var(--red)">ALSO CORRUPT</span>
+      </div>`,
+    btns:[{t:'RECOVER',p:true}]
+  },
+
+  // 9. Encryption failed
+  {
+    id:'p9', w:290, title:'ENCRYPT_FAIL', icon:'🔑',
+    html:`
+      <div class="popup-title">ENCRYPTION FAILURE</div>
+      <div class="popup-msg">
+        AES-256 key exchange <span class="red">rejected</span>.<br>
+        Falling back to: <span class="red"><b>NO ENCRYPTION</b></span><br><br>
+        All data transmitted as<br>
+        <span class="amber"><b>plain text.</b></span> Proceed?
+      </div>`,
+    btns:[{t:'CANCEL',p:false},{t:'PROCEED',p:true}]
+  },
+
+  // 10. Self aware popup 😈
+  {
+    id:'p10', w:330, title:'IC_SYSTEM', icon:'🧠',
+    html:`
+      <div class="popup-title">WAIT — THIS ISN'T REAL</div>
+      <div class="popup-msg">
+        <span class="amber">Or is it?</span><br><br>
+        You've been staring at error messages<br>
+        for <b id="stare-time">0</b> seconds.<br><br>
+        None of this is a system error.<br>
+        <span style="color:var(--cyan)"><b>We were testing you.</b></span>
+      </div>`,
+    btns:[{t:'I KNEW IT',p:false},{t:'WHAT?',p:true}]
+  },
+];
+
+// ── POPUP SPAWNER ──
+const container = document.getElementById('popup-container');
+const spawned = new Set();
+let popupQueue = [...POPUPS];
+let totalSpawned = 0;
+
+function randPos(w) {
+  const margin = 20;
+  const maxX = window.innerWidth  - w - margin;
+  const maxY = window.innerHeight - 220 - margin;
+  return {
+    x: Math.max(margin, Math.random() * maxX),
+    y: Math.max(60,     Math.random() * maxY + 60),
+  };
+}
+
+function spawnPopup(def) {
+  if(spawned.has(def.id)) return;
+  spawned.add(def.id);
+  totalSpawned++;
+  incErr();
+  flashRed();
+
+  const popup = document.createElement('div');
+  popup.className = 'popup';
+  popup.id = def.id;
+  popup.style.width = def.w + 'px';
+
+  const pos = randPos(def.w);
+  popup.style.left = pos.x + 'px';
+  popup.style.top  = pos.y + 'px';
+
+  // Title bar
+  const bar = document.createElement('div');
+  bar.className = 'popup-bar';
+  bar.innerHTML = `
+    <div class="popup-bar-left">
+      <span class="popup-icon">${def.icon}</span>
+      <span>${def.title}</span>
+    </div>
+    <button class="popup-close-btn" onclick="closePopup('${def.id}')">✕</button>`;
+  popup.appendChild(bar);
+
+  // Body
+  const body = document.createElement('div');
+  body.className = 'popup-body';
+  body.innerHTML = def.html;
+  popup.appendChild(body);
+
+  // Footer buttons — ALL clicking just spawns more popups or triggers close
+  if(def.btns){
+    const footer = document.createElement('div');
+    footer.className = 'popup-footer';
+    def.btns.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'popup-btn' + (b.p?' primary':'');
+      btn.textContent = b.t;
+      btn.addEventListener('click', () => {
+        // clicking any button: shake this popup + spawn another
+        popup.classList.add('shake');
+        setTimeout(()=>popup.classList.remove('shake'), 400);
+        spawnRandom();
+        flashRed();
+      });
+      footer.appendChild(btn);
+    });
+    popup.appendChild(footer);
+  }
+
+  // Dragging
+  makeDraggable(popup);
+
+  container.appendChild(popup);
+
+  // Animate in after short delay
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=> popup.classList.add('show'));
+  });
+
+  // Memory bar animation
+  const memBar = popup.querySelector('#mem-bar');
+  if(memBar){
+    let w=0;
+    const iv = setInterval(()=>{
+      w = Math.min(100,w+Math.random()*4+1);
+      memBar.style.width = w+'%';
+      if(w>=100) clearInterval(iv);
+    },60);
+  }
+
+  // Self-aware popup stare timer
+  const stareEl = popup.querySelector('#stare-time');
+  if(stareEl){
+    const t0 = Date.now();
+    const iv2 = setInterval(()=>{
+      stareEl.textContent = Math.floor((Date.now()-t0)/1000);
+    },1000);
+    popup._stareIv = iv2;
+  }
+}
+
+function closePopup(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.remove('show');
+  el.style.transform='scale(0.8)';
+  el.style.opacity='0';
+  setTimeout(()=>{ el.remove(); spawned.delete(id); },220);
+  // Closing spawns 2 new ones! 😈
+  spawnRandom();
+  spawnRandom();
+  flashRed();
+  incErr();
+}
+
+function spawnRandom(){
+  // pick a popup def not currently shown
+  const available = POPUPS.filter(p=>!spawned.has(p.id));
+  if(available.length===0){
+    // respawn a random one
+    const pick = POPUPS[Math.floor(Math.random()*POPUPS.length)];
+    spawned.delete(pick.id);
+    spawnPopup(pick);
+    return;
+  }
+  const pick=available[Math.floor(Math.random()*available.length)];
+  spawnPopup(pick);
+}
+
+// ── DRAGGABLE ──
+function makeDraggable(el){
+  const bar = el.querySelector('.popup-bar');
+  let ox,oy,dragging=false;
+  bar.addEventListener('mousedown', e=>{
+    dragging=true;
+    ox=e.clientX-el.offsetLeft;
+    oy=e.clientY-el.offsetTop;
+    el.style.zIndex=String(parseInt(el.style.zIndex||100)+1);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e=>{
+    if(!dragging)return;
+    el.style.left=Math.max(0,Math.min(window.innerWidth-el.offsetWidth, e.clientX-ox))+'px';
+    el.style.top =Math.max(0,Math.min(window.innerHeight-el.offsetHeight,e.clientY-oy))+'px';
+  });
+  document.addEventListener('mouseup',()=>{ dragging=false; });
+}
+
+// ── SPAWN SEQUENCE ──
+// Spawn popups rapidly, filling screen over ~3 seconds
+const spawnSchedule = [
+  [300,  'p1'],
+  [600,  'p3'],
+  [900,  'p2'],
+  [1100, 'p5'],
+  [1300, 'p4'],
+  [1500, 'p7'],
+  [1700, 'p6'],
+  [1900, 'p8'],
+  [2100, 'p9'],
+  [2400, 'p10'], // the self-aware one last
+];
+
+spawnSchedule.forEach(([delay, id])=>{
+  const def = POPUPS.find(p=>p.id===id);
+  setTimeout(()=> spawnPopup(def), delay);
+});
+
+// ── GLITCH BURSTS ──
+function doGlitch(){
+  const gl = document.getElementById('glitch-overlay');
+  gl.innerHTML='';
+  for(let i=0;i<6;i++){
+    const bar=document.createElement('div');
+    bar.className='g-bar';
+    bar.style.top=Math.random()*100+'%';
+    bar.style.height=(Math.random()*12+1)+'px';
+    bar.style.opacity=(Math.random()*0.18).toString();
+    gl.appendChild(bar);
+  }
+  gsap.to(gl,{opacity:1,duration:0.04,onComplete:()=>{
+    gsap.to(gl,{opacity:0,duration:0.04,delay:0.08});
+  }});
+}
+setInterval(doGlitch, 600);
+
+// ── TRANSITION TO NEXT PAGE after 4 seconds ──
+// Show counter screen then navigate
+setTimeout(()=>{
+  const cs=document.getElementById('counter-screen');
+  const csNum=document.getElementById('cs-num');
+  cs.classList.add('show');
+
+  let count=3;
+  csNum.textContent=count;
+
+  const iv=setInterval(()=>{
+    count--;
+    csNum.textContent=count;
+    doGlitch();
+    flashRed();
+    if(count<=0){
+      clearInterval(iv);
+
+      // 🎥 Create monkey video
+      
+      // Show tap-to-continue overlay first (needed for audio autoplay)
+      const tapOverlay = document.createElement("div");
+      tapOverlay.style.cssText = `
+        position:fixed; inset:0; z-index:999998;
+        display:flex; align-items:center; justify-content:center;
+        background:#050608; cursor:pointer;
+      `;
+      tapOverlay.innerHTML = `
+        <div style="text-align:center; font-family:'IBM Plex Mono',monospace;">
+          <div style="font-size:clamp(1rem,4vw,1.5rem); color:#00ff41;
+            letter-spacing:0.3em; text-transform:uppercase;
+            text-shadow:0 0 20px rgba(0,255,65,0.8);
+            animation:blink2 0.8s step-end infinite;">
+            ► TAP TO CONTINUE
+          </div>
+          <div style="margin-top:1rem; font-size:0.55rem;
+            color:rgba(0,255,65,0.3); letter-spacing:0.25em;">
+            LOADING CRITICAL PAYLOAD...
+          </div>
+        </div>
+        <style>
+          @keyframes blink2 { 0%,100%{opacity:1} 50%{opacity:0.1} }
+        </style>
+      `;
+      document.body.appendChild(tapOverlay);
+
+      tapOverlay.addEventListener("click", () => {
+        tapOverlay.remove();
+
+        // Now play video WITH audio — user already clicked
+        const video = document.createElement("video");
+        video.src = "prank2.mp4";
+        video.style.cssText = `
+          position:fixed; top:0; left:0;
+          width:100vw; height:100vh;
+          object-fit:cover; z-index:999999;
+        `;
+        video.playsInline = true;
+        video.muted = false;
+        document.body.appendChild(video);
+
+        video.onended = () => {
+          document.body.style.transition = 'opacity 0.6s ease';
+          document.body.style.opacity = '0';
+          setTimeout(() => {
+            window.location.href = 'april-fool-reveal.html';
+          }, 600);
+        };
+
+        video.play();
+      }, { once: true });
+          
+
+    }
+  },1000);
+
+},4000);
+
+</script>
+
+</body>
+</html>
