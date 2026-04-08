@@ -484,6 +484,7 @@ html, body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease;
+  overflow: hidden;
 }
 
 #monkey-screen.show {
@@ -492,9 +493,30 @@ html, body {
 }
 
 #monkey-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover;   /* fills screen on ALL sizes — no black bars */
+  object-position: center center;
+}
+
+/* Portrait phones — keep video covering full screen */
+@media (max-aspect-ratio: 9/16) {
+  #monkey-video {
+    width: auto;
+    height: 100%;
+    min-width: 100%;
+  }
+}
+
+/* Landscape phones */
+@media (max-width: 768px) and (orientation: landscape) {
+  #monkey-video {
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+  }
 }
 
 /* ══════════════════════════
@@ -638,7 +660,7 @@ html, body {
 
 <!-- Monkey Webcam Screen -->
 <div id="monkey-screen">
-<video id="monkey-video" src="monkey.mp4" autoplay muted playsinline preload="auto"></video></div>
+<video id="monkey-video" src="monkey.mp4" muted playsinline preload="auto" webkit-playsinline="true"></video></div>
 
 <!-- Cursor -->
 <div id="cur"></div>
@@ -659,28 +681,70 @@ document.addEventListener('mousemove', e => {
 //  iMESSAGE SOUND ENGINE
 // ══════════════════════════
 const msgSound = new Audio('imessage.mp3');
-msgSound.volume = 0.8;
+msgSound.preload = 'auto';
+msgSound.volume  = 0.8;
+
+// Use AudioContext to decode & buffer the sound for zero-latency playback
+let audioCtx     = null;
+let soundBuffer  = null;
 let audioUnlocked = false;
 
-// Unlock audio on first interaction (browser policy)
-function unlockAudio() {
+async function unlockAndBuffer() {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  // Play silent clone to warm up audio context
-  const warm = msgSound.cloneNode();
-  warm.volume = 0;
-  warm.play().catch(() => {});
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const resp = await fetch('imessage.mp3');
+    const ab   = await resp.arrayBuffer();
+    soundBuffer = await audioCtx.decodeAudioData(ab);
+  } catch (e) {
+    // fallback — Web Audio failed, use HTML Audio below
+    soundBuffer = null;
+  }
 }
-document.addEventListener('click',     unlockAudio, { once: true });
-document.addEventListener('touchstart',unlockAudio, { once: true });
-document.addEventListener('mousemove', unlockAudio, { once: true });
+
+// Unlock on first real user gesture
+['click','touchstart','mousemove','keydown'].forEach(evt =>
+  document.addEventListener(evt, unlockAndBuffer, { once: true })
+);
+
+// Also eagerly attempt on page load (works on many browsers if no block)
+window.addEventListener('load', () => unlockAndBuffer().catch(() => {}));
 
 function playMsgSound() {
-  // Clone so overlapping sounds work (rapid messages)
-  const s = msgSound.cloneNode();
-  s.volume = 0.8;
-  s.play().catch(() => {});
+  if (audioCtx && soundBuffer) {
+    // Web Audio path — buffered, instant, zero latency
+    const src = audioCtx.createBufferSource();
+    src.buffer = soundBuffer;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.8;
+    src.connect(gain);
+    gain.connect(audioCtx.destination);
+    src.start(0);
+  } else {
+    // HTML Audio fallback
+    const s = new Audio('imessage.mp3');
+    s.volume = 0.8;
+    s.play().catch(() => {});
+  }
 }
+
+// ── Pre-buffer video for smooth playback ──
+(function preloadVideo() {
+  const vid = document.getElementById('monkey-video');
+  // Force the browser to buffer the entire video immediately
+  vid.load();
+  // On mobile, we may not be able to preload without a gesture
+  // but we prime it here anyway
+  const primeOnGesture = () => {
+    vid.load();
+    document.removeEventListener('touchstart', primeOnGesture);
+    document.removeEventListener('click',      primeOnGesture);
+  };
+  document.addEventListener('touchstart', primeOnGesture, { passive: true });
+  document.addEventListener('click',      primeOnGesture, { once: true });
+})();
 
 // ── Messages ──
 const MESSAGES = [
@@ -777,35 +841,53 @@ function handleWebcam() {
   document.getElementById('webcam-popup').classList.remove('show');
   document.getElementById('webcam-backdrop').classList.remove('show');
 
-  const conn = document.getElementById('connecting-screen');
+  const conn  = document.getElementById('connecting-screen');
+  const monkey = document.getElementById('monkey-screen');
+  const video  = document.getElementById('monkey-video');
+
   conn.classList.add('show');
 
-  // STEP 1 → show connecting for 2.5s
+  // Pre-warm video during the 2.5s connecting screen
+  video.muted = true;
+  video.currentTime = 0;
+  video.load();
+
   setTimeout(() => {
     conn.classList.remove('show');
 
-    // STEP 2 → show monkey full screen
-    const monkey = document.getElementById('monkey-screen');
-    const video = document.getElementById('monkey-video');
-
-    monkey.classList.add('show');
-
-    // try unmute (may fail due to browser policy)
+    // Try to unmute (requires prior user gesture — usually granted here)
     video.muted = false;
-    video.play().catch(() => {
-      video.muted = true;
-      video.play();
+    video.volume = 0.85;
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Autoplay blocked — keep muted and play silently
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+
+    // Fade in the monkey screen AFTER play() starts to avoid flicker
+    requestAnimationFrame(() => {
+      monkey.classList.add('show');
     });
 
-    // STEP 3 → after video (5s) go to April Fool
+    // Navigate after video ends
     video.onended = () => {
-    document.body.style.transition = 'opacity 0.6s ease';
-    document.body.style.opacity = '0';
-
-    setTimeout(() => {
-    window.location.href = 'aprilfool.html';
-    }, 600);
+      document.body.style.transition = 'opacity 0.6s ease';
+      document.body.style.opacity    = '0';
+      setTimeout(() => { window.location.href = 'aprilfool.html'; }, 600);
     };
+
+    // Safety fallback — if video never fires onended
+    setTimeout(() => {
+      if (!document.body.style.opacity || document.body.style.opacity !== '0') {
+        document.body.style.transition = 'opacity 0.6s ease';
+        document.body.style.opacity    = '0';
+        setTimeout(() => { window.location.href = 'aprilfool.html'; }, 600);
+      }
+    }, 15000);
 
   }, 2500);
 }
