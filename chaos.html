@@ -905,10 +905,19 @@ setTimeout(()=>{
         // Now play video WITH audio — user already clicked
         const video = document.createElement("video");
         video.src = "prank2.mp4";
+         if (window.innerWidth <= 800) {
+          video.style.objectFit = "contain";
+        } else {
+          video.style.objectFit = "cover";
+        }
+        
         video.style.cssText = `
-          position:fixed; top:0; left:0;
-          width:100vw; height:100vh;
-          object-fit:cover; z-index:999999;
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          background: #000;
+          z-index: 999999;
         `;
         video.playsInline = true;
         video.muted = false;
